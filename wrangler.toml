@@ -1,0 +1,11 @@
+# Cloudflare Pages project: static site in public/, API in functions/ (code in server/).
+name = "disha"
+pages_build_output_dir = "public"
+compatibility_date = "2025-09-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "disha"
+# Replace with the id printed by `npx wrangler d1 create disha`.
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"

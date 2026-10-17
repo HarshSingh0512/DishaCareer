@@ -1,0 +1,15 @@
+# Copy to .dev.vars for local development. Never commit .dev.vars.
+# In production set these with: npx wrangler pages secret put NAME
+DEV_MODE=true
+APP_SECRET=replace-with-a-long-random-string-at-least-32-chars
+# Show the paid plans and allow checkout (keep false in production until the paid features exist):
+PLANS_ON_SALE=true
+# Optional locally (without them, emails print to the console and payments are simulated):
+# RESEND_API_KEY=
+# EMAIL_FROM=Disha <hello@yourdomain.in>
+# ADMIN_EMAIL=you@yourdomain.in
+# RAZORPAY_KEY_ID=rzp_test_xxx
+# RAZORPAY_KEY_SECRET=
+# RAZORPAY_WEBHOOK_SECRET=
+# Shared with the cron Worker (workers/cron) that triggers the daily job:
+# CRON_SECRET=
