@@ -14,7 +14,7 @@ binding = "ASSETS"
 binding = "DB"
 database_name = "disha"
 # Replace with the id printed by `npx wrangler d1 create disha`.
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "747950f7-4dab-4fa6-8e5e-09941a7ad2f1"
 migrations_dir = "migrations"
 
 # Daily job at 03:30 UTC (09:00 India): cleanup, plus Disha Plus reminder
