@@ -1,7 +1,14 @@
-# Cloudflare Pages project: static site in public/, API in functions/ (code in server/).
+# Cloudflare Worker "disha": serves the website (public/), the API (/api/*,
+# code in server/) and the daily job, all from one deploy: `npm run deploy`.
 name = "disha"
-pages_build_output_dir = "public"
+main = "server/worker.js"
 compatibility_date = "2025-09-01"
+
+# Website files. Requests that match a file are served directly; everything
+# else (i.e. /api/*) runs server/worker.js.
+[assets]
+directory = "./public"
+binding = "ASSETS"
 
 [[d1_databases]]
 binding = "DB"
@@ -9,3 +16,14 @@ database_name = "disha"
 # Replace with the id printed by `npx wrangler d1 create disha`.
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
+
+# Daily job at 03:30 UTC (09:00 India): cleanup, plus Disha Plus reminder
+# emails on days 1–3 of each month (only when ACCOUNTS_ENABLED=true).
+[triggers]
+crons = ["30 3 * * *"]
+
+[vars]
+SITE_URL = "https://disha.dishacareer.workers.dev"
+
+[observability]
+enabled = true

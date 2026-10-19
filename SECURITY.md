@@ -1,16 +1,20 @@
 # Security
 
-Disha is a static website (`public/`) plus an **optional** API (`server/`, run as
-Cloudflare Pages Functions with a D1 database). The free quiz never talks to the
-API; only students who choose to sign in send anything to the server. No website
-can be made impossible to attack, but the measures below remove the common risks.
+Disha is a static website (`public/`) plus an **optional** API (`server/`, run as a
+Cloudflare Worker with a D1 database). The quiz itself never sends answers to the
+API: the only automatic call is the anonymous visitor counter, and only students
+who choose to sign in send anything personal. No website can be made impossible to
+attack, but the measures below remove the common risks.
 
 ## What protects the site
 
-**No third-party code.** The site ships only its own JavaScript. There is no
-analytics, no ad script and no npm runtime dependency, so there is no supply-chain
-risk from someone else's code. The only external request is to Google Fonts for
-the typeface (see "Going stricter" below to remove even that).
+**Almost no third-party code.** The site ships its own JavaScript with no ad
+scripts and no npm runtime dependency. The only external requests are Google Fonts
+for the typeface (see "Going stricter" below to remove it) and, once a token is set
+in `public/js/analytics.js`, the Cloudflare Web Analytics beacon, which is
+cookieless, collects no personal data and is allowed in the CSP only from
+`static.cloudflareinsights.com` / `cloudflareinsights.com`. Leave the token empty to
+switch it off.
 
 **Content Security Policy (CSP).** `script-src 'self'` means the browser will run
 JavaScript only from this site and will refuse inline scripts and `eval`. Even if
@@ -87,11 +91,20 @@ add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" alway
   strict CSP. A payment counts only after a valid HMAC signature (redirect or
   webhook); fulfilment is idempotent and the webhook re-checks the amount.
 - **Privacy by default**: IP addresses are stored only as salted hashes, API
-  responses are `no-store`, the service worker never caches `/api`, and there are
-  no analytics or ad scripts.
-- **Daily job**: `/api/cron/daily` only runs with the `X-Cron-Secret` header
-  (compared in constant time). It deletes expired sign-in codes, sessions, consent
-  links and rate-limit rows, and sends each Plus member at most one reminder a month.
+  responses are `no-store`, the service worker never caches `/api`, there are no
+  ad scripts, and visitor counting (Cloudflare Web Analytics) uses no cookies.
+- **Daily job**: runs from the Worker's cron trigger; the HTTP route
+  `/api/cron/daily` only runs with the `X-Cron-Secret` header (compared in constant
+  time). It deletes expired sign-in codes, sessions, consent links and rate-limit
+  rows, and sends each Plus member at most one reminder a month.
+- **Visitor counter**: stores three anonymous totals (visitors, visits, quizzes)
+  and nothing per person. The browser only sends "first visit on this device?",
+  remembered in its own storage. Counting endpoints require our own Origin and are
+  rate-limited per hashed IP (generously, so a school lab sharing one connection
+  still counts). Over the limit, a visit is simply not counted.
+- **Accounts switch**: with `ACCOUNTS_ENABLED` unset, every account, consent,
+  payment, report and Plus endpoint answers `503`, so the counter can be live before
+  email and payments are configured.
 - **Secrets** (`APP_SECRET`, `CRON_SECRET`, email and Razorpay keys) live in Cloudflare secrets,
   never in the repo; `.dev.vars` is git-ignored. `DEV_MODE` (which shows codes on
   screen and simulates payments) must never be set in production.

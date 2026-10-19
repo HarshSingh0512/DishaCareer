@@ -113,15 +113,19 @@ export async function listSnapshots({ request, env }) {
 }
 
 /* ---------- daily job: cleanup + monthly reminder emails ----------
-   Called once a day by the small cron Worker in workers/cron/ (or any scheduler)
-   with the shared secret in X-Cron-Secret. */
+   Runs from the Worker's cron trigger (server/worker.js → runDaily). The HTTP
+   route below exists for manual runs and tests, protected by X-Cron-Secret. */
 const REMINDER_BATCH = 50;
 
 export async function daily({ request, env, url }) {
   if (!env.CRON_SECRET) throw new HttpError(503, "cron_not_configured", "CRON_SECRET is not set.");
   const given = request.headers.get("X-Cron-Secret") || "";
   if (!safeEqual(await sha256Hex(given), await sha256Hex(env.CRON_SECRET))) throw new HttpError(401, "bad_secret", "Not allowed.");
+  const force = url.searchParams.get("force") === "1" && env.DEV_MODE === "true";
+  return json(await runDaily(env, { force, origin: url.origin }));
+}
 
+export async function runDaily(env, { force = false, origin = env.SITE_URL || "" } = {}) {
   const t = now();
   const cleaned = await env.DB.batch([
     env.DB.prepare("DELETE FROM otp_codes WHERE expires_at < ?1").bind(t),
@@ -134,9 +138,9 @@ export async function daily({ request, env, url }) {
   // daily run that hits the batch limit simply continues the next day).
   const today = indiaNow(t);
   const ym = `${today.year}-${String(today.month).padStart(2, "0")}`;
-  const force = url.searchParams.get("force") === "1" && env.DEV_MODE === "true";
   let sent = 0, failed = 0;
-  if (today.day <= 3 || force) {
+  // No reminder emails until accounts (and email sending) are switched on.
+  if (env.ACCOUNTS_ENABLED === "true" && (today.day <= 3 || force)) {
     const { results } = await env.DB.prepare(
       `SELECT p.*, u.email FROM plus_profiles p
        JOIN users u ON u.id = p.user_id
@@ -148,7 +152,7 @@ export async function daily({ request, env, url }) {
       const profile = { stage: row.stage, stream: row.stream, exams: JSON.parse(row.exams) };
       const [thisMonth, nextMonth] = buildFeed(profile, today, 2);
       try {
-        await sendEmail(env, { to: row.email, subject: `Disha: your ${thisMonth.name} plan`, text: digestText(thisMonth, nextMonth, url.origin) });
+        await sendEmail(env, { to: row.email, subject: `Disha: your ${thisMonth.name} plan`, text: digestText(thisMonth, nextMonth, origin) });
         await env.DB.prepare("UPDATE plus_profiles SET last_sent = ?2 WHERE user_id = ?1").bind(row.user_id, ym).run();
         sent++;
       } catch (e) {
@@ -157,7 +161,7 @@ export async function daily({ request, env, url }) {
       }
     }
   }
-  return json({ ok: true, cleaned: cleaned.reduce((n, r) => n + (r.meta.changes || 0), 0), sent, failed });
+  return { ok: true, cleaned: cleaned.reduce((n, r) => n + (r.meta.changes || 0), 0), sent, failed };
 }
 
 function digestText(thisMonth, nextMonth, origin) {

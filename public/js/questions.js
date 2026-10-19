@@ -164,10 +164,67 @@ window.QUIZ = {
       ]
     },
     {
+      id: "subj", kind: "subj", title: "Your Subjects", emoji: "📚", badge: "Subject Star",
+      intro: "For each subject: how much do you enjoy it, and what marks do you usually get? Be honest, it's just for you.",
+      blurb: "How much you enjoy your subjects and how you score"
+    },
+    {
       id: "fav", kind: "fav", title: "Your Favourites", emoji: "💖", badge: "Pathfinder",
-      intro: "Last step! Tell us what you love and what matters to you.",
-      blurb: "Subjects you love and what matters to you"
+      intro: "Last step! What do you love doing outside class, and what matters to you?",
+      blurb: "What you love outside class and what matters to you"
     }
+  ],
+
+  /* School subjects for the "Your Subjects" chapter. `maps` links each one to
+     the subject keys careers use (CAREER_META.subjects). */
+  schoolSubjects: {
+    maths: { label: "Maths", emoji: "➗", maps: ["maths"] },
+    science: { label: "Science", emoji: "🔬", maps: ["physics", "chemistry", "biology"] },
+    physics: { label: "Physics", emoji: "⚛️", maps: ["physics"] },
+    chemistry: { label: "Chemistry", emoji: "⚗️", maps: ["chemistry"] },
+    biology: { label: "Biology", emoji: "🧬", maps: ["biology"] },
+    english: { label: "English", emoji: "📖", maps: ["languages"] },
+    lang2: { label: "Hindi / second language", emoji: "🗣️", maps: ["languages"] },
+    social: { label: "Social Science", emoji: "🌍", maps: ["history", "geography", "civics", "economics"] },
+    history: { label: "History", emoji: "🏺", maps: ["history"] },
+    civics: { label: "Political Science / Civics", emoji: "🏛️", maps: ["civics"] },
+    geography: { label: "Geography", emoji: "🗺️", maps: ["geography"] },
+    economics: { label: "Economics", emoji: "📈", maps: ["economics"] },
+    computers: { label: "Computer Science / IT", emoji: "💻", maps: ["computers"] },
+    accounts: { label: "Accountancy", emoji: "🧮", maps: ["accounts"] },
+    business: { label: "Business Studies", emoji: "💼", maps: ["accounts", "economics"] },
+    psychology: { label: "Psychology", emoji: "🧠", maps: ["psychology"] },
+    sociology: { label: "Sociology", emoji: "👥", maps: ["psychology", "civics"] },
+    pe: { label: "Physical Education", emoji: "⚽", maps: ["sports"] },
+    fineart: { label: "Fine Arts / Painting", emoji: "🎨", maps: ["art"] },
+    music: { label: "Music", emoji: "🎵", maps: ["music"] },
+    homesci: { label: "Home Science", emoji: "🍳", maps: ["cooking", "biology"] }
+  },
+
+  /* Which subjects to ask about. Class 6–8 (m), 9–10 (s) and college (c) by
+     stage; Class 11–12 by stream. Optional subjects are asked only if the
+     student says they take them. */
+  subjectSets: {
+    m: { core: ["maths", "science", "english", "lang2", "social", "computers"], optional: [] },
+    s: { core: ["maths", "physics", "chemistry", "biology", "english", "lang2", "history", "geography", "civics", "economics"], optional: ["computers"] },
+    PCM: { core: ["physics", "chemistry", "maths", "english"], optional: ["computers", "economics", "pe", "fineart"] },
+    PCB: { core: ["physics", "chemistry", "biology", "english"], optional: ["maths", "psychology", "pe", "homesci"] },
+    PCMB: { core: ["physics", "chemistry", "maths", "biology", "english"], optional: ["computers", "pe"] },
+    COM: { core: ["accounts", "business", "economics", "english"], optional: ["maths", "computers", "pe"] },
+    HUM: { core: ["history", "civics", "geography", "economics", "english"], optional: ["psychology", "sociology", "maths", "fineart", "music", "lang2"] },
+    c: { core: ["maths", "physics", "chemistry", "biology", "english", "history", "economics", "computers"], optional: ["accounts", "psychology", "civics", "geography"] }
+  },
+
+  marksScale: ["Below 50%", "50–70%", "70–85%", "85%+"],
+
+  /* "Outside class" interests on the Favourites page (k = CAREER_META.subjects key). */
+  hobbies: [
+    { k: "art", label: "Drawing & art", emoji: "🎨" },
+    { k: "music", label: "Music & dance", emoji: "🎵" },
+    { k: "sports", label: "Sports & fitness", emoji: "⚽" },
+    { k: "cooking", label: "Cooking & baking", emoji: "🍳" },
+    { k: "computers", label: "Coding & gadgets", emoji: "💻" },
+    { k: "languages", label: "Reading & writing", emoji: "📖" }
   ],
 
   rateScale: [

@@ -354,3 +354,24 @@ test("daily job: secret required, cleanup, one reminder per month", async () => 
   assert.match(lastSent, /^\d{4}-\d{2}$/);
   assert.equal((await cron(CRON_SECRET, "?force=1")).json.sent, 0); // already sent this month
 });
+
+test("public visitor counter: unique visitors, visits, quizzes", async () => {
+  const c = new Client();
+  const before = (await c.req("/api/stats")).json;
+  assert.deepEqual(Object.keys(before).sort(), ["quizzes", "visitors", "visits"]);
+  assert.match((await c.req("/api/stats")).headers.get("cache-control"), /max-age=60/);
+
+  const first = (await c.req("/api/stats/visit", { method: "POST", body: { firstTime: true } })).json;
+  assert.equal(first.visitors, before.visitors + 1);
+  assert.equal(first.visits, before.visits + 1);
+
+  const again = (await c.req("/api/stats/visit", { method: "POST", body: { firstTime: false } })).json;
+  assert.equal(again.visitors, first.visitors, "a returning visitor is not counted twice");
+  assert.equal(again.visits, first.visits + 1);
+
+  const quiz = (await c.req("/api/stats/quiz", { method: "POST", body: {} })).json;
+  assert.equal(quiz.quizzes, before.quizzes + 1);
+
+  // Other sites can't bump the numbers.
+  assert.equal((await c.req("/api/stats/visit", { method: "POST", body: { firstTime: true }, origin: "https://evil.example" })).status, 403);
+});

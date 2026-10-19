@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <!-- Content Security Policy (defence-in-depth; the server _headers file sets the full policy).
        Scripts may load only from this site: no inline scripts, no eval, so injected markup cannot run. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://cloudflareinsights.com; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <title>Disha Career Compass</title>
   <meta name="description" content="A fun, science-backed career test for Indian students from Class 6 to college, with clear roadmaps, entrance exams and top colleges.">
@@ -18,6 +18,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
   <script src="js/boot.js"></script>
+  <script src="js/analytics.js"></script>
 </head>
 <body>
   <a class="skip" href="#app" data-i18n="skip">Skip to content</a>
@@ -48,15 +49,18 @@
         <a href="https://consortiumofnlus.ac.in" target="_blank" rel="noopener noreferrer">CLAT</a> ·
         <a href="https://www.nirfindia.org" target="_blank" rel="noopener noreferrer">NIRF</a>.</p>
       <p><a href="#/method" data-i18n="nav.method">How it works</a> · <a href="#/compare" data-i18n="nav.compare">Compare</a> · <a href="#/aptitude">Aptitude Challenge</a><span data-needs-api> · <a href="#/contact">Talk to us</a> · <a href="#/account">Your account</a></span></p>
-      <p>Personality items adapted from the public-domain International Personality Item Pool (Mini-IPIP). Your answers stay on this device unless you choose to save them to an account. No ads, no tracking.</p>
+      <p class="footer-stats"><span aria-hidden="true">👀</span> <b data-stat="visitors">0</b> <span data-stat-label="visitors" data-one="visitor">visitors</span> · <span aria-hidden="true">🎯</span> <b data-stat="quizzes">0</b> <span data-stat-label="quizzes" data-one="quiz taken">quizzes taken</span> so far</p>
+      <p>Personality items adapted from the public-domain International Personality Item Pool (Mini-IPIP). Your answers stay on this device unless you choose to save them to an account. No ads and no tracking cookies; visits are counted anonymously.</p>
     </div>
   </footer>
 
   <script src="js/i18n.js"></script>
   <script src="js/questions.js"></script>
+  <script src="js/scoring.js"></script>
   <script src="js/careers.js"></script>
   <script src="js/extras.js"></script>
   <script src="js/aptitude.js"></script>
+  <script src="js/stats.js"></script>
   <script src="js/account.js"></script>
   <script src="js/report.js"></script>
   <script src="js/plus.js"></script>

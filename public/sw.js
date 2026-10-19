@@ -3,17 +3,20 @@
    cache and refresh them in the background (stale-while-revalidate). Cross-origin
    requests (fonts) and /api calls are passed straight to the network and never cached here.
    Bump CACHE whenever the shell changes so old caches are cleaned up. */
-const CACHE = "disha-v11-2026-10-18";
+const CACHE = "disha-v16-2026-10-19";
 const SHELL = [
   "./",
   "./index.html",
   "./css/styles.css",
   "./js/boot.js",
+  "./js/scoring.js",
+  "./js/analytics.js",
   "./js/i18n.js",
   "./js/questions.js",
   "./js/careers.js",
   "./js/extras.js",
   "./js/aptitude.js",
+  "./js/stats.js",
   "./js/account.js",
   "./js/report.js",
   "./js/plus.js",

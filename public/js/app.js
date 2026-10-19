@@ -76,7 +76,7 @@
 
   /* ---------- state ---------- */
   function freshAnswers() {
-    return { tt: {}, rate: {}, likert: {}, scen: {}, fav: { subjects: [], values: [] } };
+    return { tt: {}, rate: {}, likert: {}, scen: {}, subj: {}, fav: { subjects: [], values: [] } };
   }
   function blankState() {
     return { profile: null, answers: freshAnswers(), pos: { ch: 0, q: 0 }, reveal: null, done: false, saved: [], tried: {}, apt: freshApt() };
@@ -117,6 +117,15 @@
     const vals = new Set(META.values.map(x => x.k));
     if (Array.isArray(a.fav.subjects)) out.answers.fav.subjects = a.fav.subjects.filter(k => subj.has(k)).slice(0, META.subjects.length);
     if (Array.isArray(a.fav.values)) out.answers.fav.values = [...new Set(a.fav.values.filter(k => vals.has(k)))].slice(0, 3);
+    // Subject ratings: known subjects only; enjoyment 0–4 and marks band 0–3 (either may still be unset).
+    if (a.subj && typeof a.subj === "object") {
+      Object.keys(a.subj).filter(k => Q.schoolSubjects[k]).slice(0, 30).forEach(k => {
+        const r = a.subj[k] || {};
+        const like = Number.isInteger(r.like) && r.like >= 0 && r.like <= 4 ? r.like : null;
+        const marks = Number.isInteger(r.marks) && r.marks >= 0 && r.marks < Q.marksScale.length ? r.marks : null;
+        out.answers.subj[k] = { like, marks };
+      });
+    }
 
     if (s.pos && Number.isInteger(s.pos.ch) && Number.isInteger(s.pos.q) && Q.chapters[s.pos.ch] && s.pos.q >= 0 && s.pos.q < itemCount(Q.chapters[s.pos.ch])) {
       out.pos = { ch: s.pos.ch, q: s.pos.q };
@@ -165,8 +174,11 @@
     lastPct = 0;
   }
   function answeredCount() {
-    return Q.chapters.reduce((n, ch) =>
-      n + (ch.items ? Object.keys(state.answers[ch.id]).length : (state.done ? 1 : 0)), 0);
+    return Q.chapters.reduce((n, ch) => {
+      if (ch.items) return n + Object.keys(state.answers[ch.id]).length;
+      if (ch.kind === "subj") return n + (subjectsComplete() ? 1 : 0);
+      return n + (state.done ? 1 : 0);
+    }, 0);
   }
 
   // Strip control, bidi-override and angle-bracket characters; collapse spaces; cap length.
@@ -180,100 +192,21 @@
 
   let state = loadState();
 
-  /* ---------- scoring ---------- */
-  function scoreRiasec(upto) {
-    const raw = {}, max = {};
-    TYPES.forEach(t => { raw[t] = 0; max[t] = 0; });
-    const A = state.answers;
-    Q.chapters.slice(0, upto == null ? Q.chapters.length : upto).forEach(ch => {
-      if (ch.kind === "tt") ch.items.forEach((pair, i) => {
-        pair.forEach(o => { max[o.t] += 2; });
-        if (A.tt[i] != null) raw[pair[A.tt[i]].t] += 2;
-      });
-      if (ch.kind === "rate") ch.items.forEach((it, i) => {
-        max[it.t] += 4;
-        if (A.rate[i] != null) raw[it.t] += A.rate[i];
-      });
-      if (ch.kind === "scen") ch.items.forEach((it, i) => {
-        it.o.forEach(o => { max[o.t] += 3; });
-        if (A.scen[i] != null) raw[it.o[A.scen[i]].t] += 3;
-      });
-    });
-    const pct = {};
-    TYPES.forEach(t => { pct[t] = max[t] ? Math.round(raw[t] / max[t] * 100) : 0; });
-    return pct;
-  }
+  /* ---------- scoring (the formulas live in js/scoring.js) ---------- */
+  const SC = window.DishaScoring;
+  const scoreRiasec = upto => SC.riasec(Q, state.answers, upto);
+  const scoreB5 = () => SC.bigFive(Q, state.answers);
+  const scoreApt = () => SC.aptitude(APT, state.apt.ans); // percent correct per aptitude area
+  const buildProfile = () => SC.profile(Q, state.answers, state.apt.done ? scoreApt() : null);
+  const matchCareer = (c, p) => SC.match(c, p, CAREER_APT);
 
-  function scoreB5() {
-    const sum = {}, n = {};
-    TRAITS.forEach(k => { sum[k] = 0; n[k] = 0; });
-    const ch = Q.chapters.find(c => c.kind === "likert");
-    ch.items.forEach((it, i) => {
-      const a = state.answers.likert[i];
-      if (a == null) return;
-      sum[it.k] += it.r ? 6 - a : a;
-      n[it.k]++;
-    });
-    const pct = {};
-    TRAITS.forEach(k => { pct[k] = n[k] ? Math.round((sum[k] / n[k] - 1) / 4 * 100) : 50; });
-    return pct;
-  }
-
-  function relative(r) {
-    const vals = TYPES.map(t => r[t]);
-    const lo = Math.min(...vals), hi = Math.max(...vals);
-    const rel = {};
-    TYPES.forEach(t => { rel[t] = hi === lo ? 50 : (r[t] - lo) / (hi - lo) * 100; });
-    return rel;
-  }
-
-  // Percent correct per aptitude area.
-  function scoreApt() {
-    const right = {}, n = {};
-    APT_AREAS.forEach(k => { right[k] = 0; n[k] = 0; });
-    APT.items.forEach((it, i) => {
-      n[it.k]++;
-      if (state.apt.ans[i] === it.a) right[it.k]++;
-    });
-    const pct = {};
-    APT_AREAS.forEach(k => { pct[k] = n[k] ? Math.round(right[k] / n[k] * 100) : 0; });
-    return pct;
-  }
-
-  function buildProfile() {
-    const r = scoreRiasec(), b = scoreB5();
-    return { r, b, rel: relative(r), order: sortTypes(r), fav: state.answers.fav, apt: state.apt.done ? scoreApt() : null };
-  }
-
-  const CODE_WEIGHTS = [3, 2, 1];
-  function matchCareer(c, p) {
-    const letters = c.code.split("");
-    const fit = src => letters.reduce((s, l, i) => s + CODE_WEIGHTS[i] * src[l], 0) / 6;
-    const interest = 0.7 * fit(p.rel) + 0.3 * fit(p.r);
-
-    const prefs = Object.entries(c.b5);
-    const weight = prefs.reduce((s, [, w]) => s + Math.abs(w), 0);
-    const personality = weight
-      ? 50 + 50 * prefs.reduce((s, [k, w]) => s + w * (p.b[k] - 50) / 50, 0) / weight
-      : 50;
-
-    const overlap = (mine, theirs) => {
-      if (!mine.length) return 50;
-      const need = Math.min(2, mine.length, theirs.length);
-      const hits = theirs.filter(x => mine.includes(x)).length;
-      return 20 + 80 * Math.min(1, hits / need);
-    };
-    const subjects = overlap(p.fav.subjects, c.subjects);
-    const values = overlap(p.fav.values, c.values);
-
-    // The optional aptitude challenge becomes a sixth input once it is finished.
-    const areas = CAREER_APT[c.id];
-    const aptitude = p.apt && areas ? 0.6 * p.apt[areas[0]] + 0.4 * p.apt[areas[1]] : null;
-
-    const score = aptitude == null
-      ? 0.55 * interest + 0.2 * personality + 0.15 * subjects + 0.1 * values
-      : 0.5 * interest + 0.15 * personality + 0.1 * aptitude + 0.15 * subjects + 0.1 * values;
-    return { score: Math.round(Math.max(1, Math.min(99, score))), interest, personality, subjects, values, aptitude };
+  // The subjects asked about for this student's class/stream, and whether every
+  // one they study has both an enjoyment and a marks answer.
+  const subjectSetFor = () => SC.subjectSet(Q, state.profile);
+  function subjectsComplete() {
+    const set = subjectSetFor(), A = state.answers.subj;
+    const asked = set.core.concat(set.optional.filter(k => A[k]));
+    return asked.every(k => A[k] && Number.isInteger(A[k].like) && Number.isInteger(A[k].marks));
   }
 
   const rank = p => CAREERS.map(c => Object.assign({ c }, matchCareer(c, p))).sort((a, b) => b.score - a.score);
@@ -284,8 +217,8 @@
     if (strong.length) out.push(`Fits your ${strong.join(" + ")} side`);
     const apts = p.apt ? (CAREER_APT[c.id] || []).filter(k => p.apt[k] >= 75).map(k => APT.areas[k].name.toLowerCase()) : [];
     if (apts.length) out.push(`Plays to your strength in ${apts.join(" & ")}`);
-    const subj = c.subjects.filter(s => p.fav.subjects.includes(s)).map(s => find(META.subjects, s).label);
-    if (subj.length) out.push(`Uses subjects you enjoy: ${subj.slice(0, 3).join(", ")}`);
+    const subj = c.subjects.filter(s => p.subj[s] >= 65).map(s => find(META.subjects, s).label);
+    if (subj.length) out.push(`Uses subjects you enjoy and do well in: ${subj.slice(0, 3).join(", ")}`);
     const vals = c.values.filter(v => p.fav.values.includes(v)).map(v => find(META.values, v).label.toLowerCase());
     if (vals.length) out.push(`Offers what you value: ${vals.join(", ")}`);
     const traits = Object.entries(c.b5).filter(([k, w]) => w * (p.b[k] - 50) >= 10).map(([k]) => Q.traits[k].name.toLowerCase());
@@ -331,6 +264,7 @@
     const extra = window.DISHA_VIEWS || {};
     if (!views[page] && typeof extra[page] === "function") views[page] = () => extra[page](app, arg);
     (views[page] || renderHome)();
+    if (window.DishaStats) window.DishaStats.paint();
     window.scrollTo(0, 0);
     const h1 = app.querySelector("h1");
     if (h1) { h1.tabIndex = -1; h1.focus({ preventScroll: true }); }
@@ -377,6 +311,10 @@
         <p class="lead">${esc(t("home.lead"))}</p>
         <div class="cta-row">${actions}</div>
         <p class="small muted">${esc(t("home.meta"))}</p>
+        <div class="stats-strip" aria-live="polite">
+          <span class="stat-pill"><span aria-hidden="true">👀</span> <b class="grad" data-stat="visitors">0</b> <span data-stat-label="visitors" data-one="visitor">visitors</span></span>
+          <span class="stat-pill"><span aria-hidden="true">🎯</span> <b class="grad" data-stat="quizzes">0</b> <span data-stat-label="quizzes" data-one="quiz taken">quizzes taken</span></span>
+        </div>
         ${langNote()}
       </div>
       <div class="hero-art">
@@ -428,8 +366,10 @@
         <h3>Your personality — the Big Five</h3>
         <p class="small muted">Measured with the public-domain Mini-IPIP, a widely used short form of the Big Five personality questionnaire.</p>
         <ul class="method-list">${traitRows}</ul>
+        <h3>Your subjects</h3>
+        <p>For each subject you study (based on your class and stream): how much you enjoy it and what marks you usually get. Enjoyment counts a little more than marks, because marks can improve.</p>
         <h3>Your favourites</h3>
-        <p>The subjects you enjoy and what you want from a career (money, helping others, creativity, and so on).</p>
+        <p>What you love doing outside class, and what you want from a career (money, helping others, creativity, and so on).</p>
         <h3>Your aptitude (optional)</h3>
         <p>The <a href="#/aptitude">Aptitude Challenge</a> has ${APT.items.length} short puzzles across ${APT_AREAS.map(k => esc(APT.areas[k].name.toLowerCase())).join(", ")}. It shows what you are naturally quick at today, which is different from what you enjoy.</p>
       </div>
@@ -438,12 +378,13 @@
         <h2>2. How we match you to careers</h2>
         <p>Every career has a three-letter Holland code, the personality traits that help in it, and the subjects and values it fits. Your match score combines four things:</p>
         <ul class="method-list">
-          <li><b>55% — Interests.</b> How well your strongest interests line up with the career's Holland code.</li>
-          <li><b>20% — Personality.</b> How your traits fit what the work usually demands.</li>
-          <li><b>15% — Subjects you enjoy.</b></li>
+          <li><b>50% — Interests.</b> How your whole interest profile (all six types) compares with the career's, and how strong your interests are in its three main types.</li>
+          <li><b>25% — Subjects.</b> How much you enjoy, and how well you score in, the subjects the career uses. A subject you find hard pulls a career down; one you love and do well in pushes it up.</li>
+          <li><b>15% — Personality.</b> How your traits fit what the work usually demands.</li>
           <li><b>10% — What you value.</b></li>
         </ul>
-        <p>If you finish the optional Aptitude Challenge, it becomes a sixth input worth <b>10%</b> (interests drop to 50% and personality to 15%). Each career is linked to the two aptitudes it uses most, such as logic and numbers for a software engineer.</p>
+        <p>If you finish the optional Aptitude Challenge, it becomes a fifth input worth <b>10%</b> (interests become 45%, subjects 22% and personality 13%). Each career is linked to the two aptitudes it uses most, such as logic and numbers for a software engineer.</p>
+        <p>Careers that are genuinely similar for you, such as two kinds of engineering, will have close scores. That is honest, not a flaw: read the reasons on each card to choose between them.</p>
         <p>Each match card shows the main reasons it was chosen, so nothing is a black box.</p>
       </div>
 
@@ -500,7 +441,7 @@
         <ul class="side-list">${Q.chapters.map((ch, i) => `
           <li><span aria-hidden="true">${ch.emoji}</span><b>${i + 1}. ${esc(ch.title)}</b><span class="small muted">${esc(ch.blurb)}</span></li>`).join("")}
         </ul>
-        <p class="small muted">⏱ About 8 minutes · No right or wrong answers · Your answers stay on this device.</p>
+        <p class="small muted">⏱ About 10 minutes · No right or wrong answers · Your answers stay on this device.</p>
       </div></aside></div>
     </section>`;
   }
@@ -518,7 +459,7 @@
   /* ---------- quiz ---------- */
   let bump = false;
   let lastPct = 0;
-  const HINTS = { tt: "Keys: ← or →", rate: "Keys: 1–5", likert: "Keys: 1–5", scen: "Keys: 1–4", fav: "" };
+  const HINTS = { tt: "Keys: ← or →", rate: "Keys: 1–5", likert: "Keys: 1–5", scen: "Keys: 1–4", subj: "", fav: "" };
 
   function journey(ci) {
     return `<ol class="journey" aria-label="Chapters">${Q.chapters.map((ch, i) => `
@@ -531,14 +472,17 @@
     if (state.done) return go("#/results");
     if (state.reveal != null) return renderReveal();
     const ci = state.pos.ch, ch = Q.chapters[ci], qi = state.pos.q;
-    const body = { tt: qThisOrThat, rate: qRate, likert: qLikert, scen: qScenario, fav: qFavourites }[ch.kind](ch, qi);
+    const body = { tt: qThisOrThat, rate: qRate, likert: qLikert, scen: qScenario, subj: qSubjects, fav: qFavourites }[ch.kind](ch, qi);
     const done = answeredCount();
+    // Revisiting an answered question (via Back or "Review answers"): offer Next
+    // so the student doesn't have to re-pick the same answer to move on.
+    const answered = Boolean(ch.items) && state.answers[ch.id][qi] != null;
     app.innerHTML = `
     <section class="view quiz">
       <h1 class="sr-only">Chapter ${ci + 1}: ${esc(ch.title)}</h1>
       ${journey(ci)}
       <div class="q-meta">
-        <span><b>${ch.emoji} ${esc(ch.title)}</b> · ${ch.items ? `${qi + 1} of ${ch.items.length}` : "Last step"}</span>
+        <span><b>${ch.emoji} ${esc(ch.title)}</b> · ${ch.items ? `${qi + 1} of ${ch.items.length}` : ch.kind === "fav" ? "Last step" : "One page"}</span>
         <span class="xp ${bump ? "bump" : ""}">⭐ ${done * 10} XP</span>
       </div>
       <div class="progress" role="progressbar" aria-label="Overall progress" aria-valuemin="0" aria-valuemax="${TOTAL}" aria-valuenow="${done}">
@@ -547,10 +491,12 @@
       <div class="q-wrap">${body}</div>
       <div class="q-foot">
         <button class="btn ghost small" data-act="back">${esc(t("common.back"))}</button>
-        <span class="small muted hint">${esc(HINTS[ch.kind])}</span>
+        <span class="small muted hint">${esc(HINTS[ch.kind])}${answered ? " · Enter: next" : ""}</span>
+        ${answered ? `<button class="btn primary small" data-act="forward" id="q-next">Next →</button>` : ""}
       </div>
     </section>`;
     bump = false;
+    if (ch.kind === "subj") refreshSubjects();
     const pct = (done / TOTAL * 100).toFixed(1);
     const bar = app.querySelector(".progress span");
     requestAnimationFrame(() => { bar.style.width = pct + "%"; });
@@ -600,6 +546,63 @@
       </div>`;
   }
 
+  /* "Your Subjects": enjoyment + usual marks for each subject the student studies. */
+  function subjectRow(k, optional) {
+    const s = Q.schoolSubjects[k], r = state.answers.subj[k] || {};
+    return `<div class="subj-row ${Number.isInteger(r.like) && Number.isInteger(r.marks) ? "done" : ""}" data-subj="${esc(k)}">
+      <div class="subj-head"><span class="subj-emoji" aria-hidden="true">${s.emoji}</span><b>${esc(s.label)}</b>
+        ${optional ? `<button type="button" class="subj-remove" data-act="subjOpt" data-k="${esc(k)}" aria-label="Remove ${esc(s.label)}">✕</button>` : ""}</div>
+      <div class="subj-q"><span class="small muted">How much do you enjoy it?</span>
+        <div class="subj-like" role="group" aria-label="How much do you enjoy ${esc(s.label)}?">${Q.rateScale.map((o, i) => `
+          <button type="button" class="subj-btn ${r.like === i ? "sel" : ""}" data-act="subjLike" data-k="${esc(k)}" data-v="${i}" aria-pressed="${r.like === i}" title="${esc(o.x)}"><span aria-hidden="true">${o.e}</span><span class="sr-only">${esc(o.x)}</span></button>`).join("")}
+        </div></div>
+      <div class="subj-q"><span class="small muted">Your usual marks?</span>
+        <div class="subj-marks" role="group" aria-label="Your usual marks in ${esc(s.label)}">${Q.marksScale.map((m, i) => `
+          <button type="button" class="chip ${r.marks === i ? "on" : ""}" data-act="subjMarks" data-k="${esc(k)}" data-v="${i}" aria-pressed="${r.marks === i}">${esc(m)}</button>`).join("")}
+        </div></div>
+    </div>`;
+  }
+
+  function qSubjects(ch) {
+    const set = subjectSetFor(), A = state.answers.subj;
+    const taking = set.optional.filter(k => A[k]);
+    const notTaking = set.optional.filter(k => !A[k]);
+    const stage = find(META.userStages, state.profile.stage).label;
+    const stream = state.profile.stream ? ` · ${find(META.userStreams, state.profile.stream).label}` : "";
+    return `<p class="q-intro">${esc(ch.intro)}</p>
+      <p class="subj-for small muted">Subjects for <b>${esc(stage)}${esc(stream)}</b></p>
+      <div class="subj-list">${set.core.map(k => subjectRow(k, false)).join("")}${taking.map(k => subjectRow(k, true)).join("")}</div>
+      ${notTaking.length ? `<div class="card subj-more"><h2 class="fav-h">Do you also study any of these? <span class="small muted">(tap to add)</span></h2>
+        <div class="chips">${notTaking.map(k => `<button type="button" class="chip" data-act="subjOpt" data-k="${esc(k)}">+ ${Q.schoolSubjects[k].emoji} ${esc(Q.schoolSubjects[k].label)}</button>`).join("")}</div></div>` : ""}
+      <p class="small muted subj-status" id="subj-status" role="status"></p>
+      <button class="btn primary lg block" data-act="subjNext" id="subj-next">Next: ${Q.chapters[state.pos.ch + 1].emoji} ${esc(Q.chapters[state.pos.ch + 1].title)} →</button>`;
+  }
+
+  // Updates the "3 of 5 subjects done" line and the Next button without a full re-render.
+  function refreshSubjects() {
+    const set = subjectSetFor(), A = state.answers.subj;
+    const asked = set.core.concat(set.optional.filter(k => A[k]));
+    const done = asked.filter(k => A[k] && Number.isInteger(A[k].like) && Number.isInteger(A[k].marks)).length;
+    const st = document.getElementById("subj-status"), next = document.getElementById("subj-next");
+    if (st) st.textContent = done === asked.length ? "All subjects done ✓" : `${done} of ${asked.length} subjects done · answer both questions for each`;
+    if (next) next.disabled = done !== asked.length;
+  }
+
+  function rateSubject(btn, field) {
+    const k = btn.dataset.k, v = Number(btn.dataset.v);
+    if (!Q.schoolSubjects[k]) return;
+    const r = state.answers.subj[k] || (state.answers.subj[k] = { like: null, marks: null });
+    r[field] = v;
+    btn.parentElement.querySelectorAll("button").forEach(b => {
+      const on = b === btn;
+      b.classList.toggle(field === "like" ? "sel" : "on", on);
+      b.setAttribute("aria-pressed", on);
+    });
+    btn.closest(".subj-row").classList.toggle("done", Number.isInteger(r.like) && Number.isInteger(r.marks));
+    saveState();
+    refreshSubjects();
+  }
+
   function qFavourites(ch) {
     const f = state.answers.fav;
     const chip = (group, s) => {
@@ -608,8 +611,8 @@
     };
     return `<p class="q-intro">${esc(ch.intro)}</p>
       <div class="card fav">
-        <h2 class="fav-h">Subjects you enjoy <span class="small muted">(pick any)</span></h2>
-        <div class="chips">${META.subjects.map(s => chip("subjects", s)).join("")}</div>
+        <h2 class="fav-h">Outside class, I love… <span class="small muted">(pick any)</span></h2>
+        <div class="chips">${Q.hobbies.map(s => chip("subjects", s)).join("")}</div>
         <h2 class="fav-h">What matters most to you in a career? <span class="small muted" id="val-count">(pick up to 3 · ${f.values.length}/3)</span></h2>
         <div class="chips">${META.values.map(v => chip("values", v)).join("")}</div>
       </div>
@@ -618,6 +621,16 @@
 
   function insightFor(ci) {
     const kind = Q.chapters[ci].kind;
+    if (kind === "subj") {
+      const A = state.answers.subj;
+      const score = k => 0.6 * A[k].like / 4 + 0.4 * A[k].marks / 3;
+      const rated = Object.keys(A).filter(k => A[k] && Number.isInteger(A[k].like) && Number.isInteger(A[k].marks))
+        .sort((a, b) => score(b) - score(a));
+      const best = rated.slice(0, 2).map(k => `<b>${Q.schoolSubjects[k].emoji} ${esc(Q.schoolSubjects[k].label)}</b>`).join(" and ");
+      return `<div class="insight"><span class="big-emoji" aria-hidden="true">📚</span>
+        ${best ? `<p>Your strongest subjects: ${best}</p>` : ""}
+        <p class="muted">Careers that use the subjects you enjoy and score well in will rise to the top of your matches.</p></div>`;
+    }
     if (kind === "likert") {
       const b = scoreB5();
       const k = TRAITS.slice().sort((x, y) => Math.abs(b[y] - 50) - Math.abs(b[x] - 50))[0];
@@ -633,7 +646,7 @@
     }
     const tops = order.slice(0, 3).map(k => `<b style="color:var(--${k})">${Q.types[k].emoji} ${esc(Q.types[k].noun)}</b>`).join(" · ");
     const tail = kind === "scen"
-      ? `<p class="muted">One last step: tell us what you love, and we'll match you against ${CAREERS.length} careers.</p>`
+      ? `<p class="muted">Two quick steps left: your subjects and what you love. Then we'll match you against ${CAREERS.length} careers.</p>`
       : `<p class="muted">Your interest map is taking shape.</p>`;
     return `<div class="insight">${hexChart(r, true)}<p>Top three right now: ${tops}</p>${tail}</div>`;
   }
@@ -676,6 +689,17 @@
     renderQuiz();
   }
 
+  // Move on from an already-answered question, keeping the answer.
+  function forward() {
+    const ch = Q.chapters[state.pos.ch];
+    if (!ch.items || state.answers[ch.id][state.pos.q] == null) return;
+    if (state.pos.q < ch.items.length - 1) state.pos.q++;
+    else state.reveal = state.pos.ch;
+    saveState();
+    renderQuiz();
+    window.scrollTo(0, 0);
+  }
+
   function back() {
     if (state.reveal != null) state.reveal = null;
     else if (state.pos.q > 0) state.pos.q--;
@@ -685,6 +709,7 @@
     } else return go("#/start");
     saveState();
     renderQuiz();
+    window.scrollTo(0, 0);
   }
 
   function toggleFav(btn) {
@@ -1407,7 +1432,26 @@
   const actions = {
     pick,
     back,
+    forward,
     fav: toggleFav,
+    subjLike: b => rateSubject(b, "like"),
+    subjMarks: b => rateSubject(b, "marks"),
+    subjOpt(b) {
+      const k = b.dataset.k, set = subjectSetFor();
+      if (!set.optional.includes(k)) return;
+      if (state.answers.subj[k]) delete state.answers.subj[k];
+      else state.answers.subj[k] = { like: null, marks: null };
+      saveState();
+      renderQuiz();
+    },
+    subjNext() {
+      if (!subjectsComplete()) return;
+      state.reveal = state.pos.ch;
+      bump = true;
+      saveState();
+      renderQuiz();
+      window.scrollTo(0, 0);
+    },
     copyShare,
     continue() {
       state.pos = { ch: state.reveal + 1, q: 0 };
@@ -1421,6 +1465,7 @@
       state.reveal = null;
       celebrate = true;
       saveState();
+      if (window.DishaStats) window.DishaStats.quizDone();
       go("#/results");
     },
     stage(b) {
@@ -1530,6 +1575,12 @@
     }
     if (!location.hash.startsWith("#/quiz") || state.reveal != null || state.done) return;
     const ch = Q.chapters[state.pos.ch];
+    // Enter on an answered question = Next (unless a button has focus: let it act).
+    if (e.key === "Enter" && !/^(button|a)$/i.test(e.target.tagName) && document.getElementById("q-next")) {
+      e.preventDefault();
+      forward();
+      return;
+    }
     const n = Number(e.key);
     let v = null;
     if (ch.kind === "tt") {
