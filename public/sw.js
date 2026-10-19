@@ -3,7 +3,7 @@
    cache and refresh them in the background (stale-while-revalidate). Cross-origin
    requests and /api calls are passed straight to the network and never cached here.
    Bump CACHE whenever the shell changes so old caches are cleaned up. */
-const CACHE = "disha-v26-2026-10-20";
+const CACHE = "disha-v27-2026-10-20";
 const SHELL = [
   "./",
   "./index.html",
