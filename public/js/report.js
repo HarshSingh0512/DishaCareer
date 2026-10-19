@@ -18,6 +18,7 @@
     ["personality", "Your personality in depth"],
     ["aptitude", "Your aptitude"],
     ["careers", "Your top 10 careers"],
+    ["inside", "Inside your top 3 careers"],
     ["stream", "Stream and subjects"],
     ["exams", "Your entrance-exam timeline"],
     ["plan", "Your 6-month action plan"],
@@ -25,6 +26,50 @@
   ];
 
   const list = items => `<ul class="rp-list">${items.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`;
+
+  /* ---------- "Inside your top 3 careers" (O*NET data from GET /api/report) ---------- */
+  // O*NET knowledge areas -> the Disha subject scores that show readiness for them.
+  const KNOW_SUBJ = {
+    "Mathematics": ["maths"], "Physics": ["physics"], "Chemistry": ["chemistry"], "Biology": ["biology"],
+    "Medicine and Dentistry": ["biology"], "Computers and Electronics": ["computers"],
+    "Engineering and Technology": ["physics", "maths"], "Mechanical": ["physics"],
+    "English Language": ["languages"], "Foreign Language": ["languages"], "Communications and Media": ["languages"],
+    "Economics and Accounting": ["economics", "accounts"], "Sales and Marketing": ["economics", "accounts"],
+    "Psychology": ["psychology"], "Sociology and Anthropology": ["psychology", "history"], "Therapy and Counseling": ["psychology"],
+    "Geography": ["geography"], "History and Archeology": ["history"], "Law and Government": ["civics"],
+    "Fine Arts": ["art", "music"], "Design": ["art"], "Food Production": ["cooking", "biology"]
+  };
+  // Bars for 1–5 ratings (importance or how often).
+  const bars = items => `<ul class="rp-bars">${items.map(([name, v]) => `
+      <li><span>${esc(name)}</span><span class="rp-bar" aria-hidden="true"><i style="width:${Math.round(Math.max(4, Math.min(100, (v - 1) / 4 * 100)))}%"></i></span></li>`).join("")}</ul>`;
+  const importance = v => v >= 4 ? "essential" : v >= 3.5 ? "very important" : "important";
+  function gapFor(name, p) {
+    const keys = KNOW_SUBJ[name];
+    if (!keys) return ["learn", "Learned in college or on the job"];
+    const vals = keys.map(k => p.subj[k]).filter(x => typeof x === "number");
+    if (!vals.length) return ["unknown", "You haven't rated this subject yet"];
+    const best = Math.max(...vals);
+    return best >= 65 ? ["strong", "A strength for you"] : best >= 45 ? ["ok", "On track: keep building"] : ["build", "Worth building up"];
+  }
+  function insideCareer(m, i, p, deep) {
+    const c = m.c, d = deep && deep[c.id];
+    const head = `<h3>${i + 1}. ${c.emoji} ${esc(c.title)} <span class="rp-pct">${m.score}%</span></h3>`;
+    if (!d) return `<div class="rp-block rp-inside">${head}<p class="muted">Detailed O*NET data isn't available for this India-specific career. Its full roadmap is in section 5.</p></div>`;
+    return `<div class="rp-block rp-inside">${head}
+      <p class="small muted">Based on: ${esc(d.occupations.join("; "))}</p>
+      <h4>A day in this work</h4>${list(d.tasks)}
+      <div class="rp-cols">
+        <div><h4>Skills you'll use most</h4>${bars(d.skills)}<p class="small muted">Longer bar = more important in this work.</p></div>
+        <div><h4>What the work is like</h4>${bars(d.context)}<p class="small muted">Longer bar = more often, or more of it.</p></div>
+      </div>
+      <h4>Knowledge you'll need, and your gap</h4>
+      <div class="rp-gap">${d.knowledge.map(([k, v]) => {
+        const [cls, text] = gapFor(k, p);
+        return `<div class="rp-gap-row"><span><b>${esc(k)}</b> <span class="small muted">· ${importance(v)}</span></span><span class="gap gap-${cls}">${esc(text)}</span></div>`;
+      }).join("")}</div>
+      ${d.titles.length ? `<h4>Job titles you'll see</h4><div class="tags">${d.titles.map(t => `<span class="tag">${esc(t)}</span>`).join("")}</div>` : ""}
+    </div>`;
+  }
   const section = (id, n, body) => `<section class="card rp-section" id="rp-${id}">
       <span class="rp-num">${n}</span><h2>${esc(SECTIONS[n - 1][1])}</h2>${body}</section>`;
 
@@ -162,7 +207,12 @@
       </div>`;
     }).join("");
 
-    // 6. Stream and subjects
+    // 6. Inside your top 3 careers (O*NET)
+    const inside = `<p>What your top three careers are really like day to day, the skills and knowledge they use, and where you already stand. "Your gap" compares each knowledge area with how you rated your own subjects.</p>
+      ${ranked.slice(0, 3).map((m, i) => insideCareer(m, i, p, C.deep)).join("")}
+      <p class="small muted">Contains information from the O*NET 31.0 Database by the U.S. Department of Labor, Employment and Training Administration (USDOL/ETA), used under the CC BY 4.0 licence; Disha selected the top items and averaged related occupations. Tasks and job titles describe the work in the United States: the core of each career is similar in India, but titles and settings can differ.</p>`;
+
+    // 7. Stream and subjects
     let stream;
     if (stage === "m" || stage === "s") {
       stream = `<p>Suggested stream for Class 11: <span class="big-rec">${esc(streamRec.rec)}</span></p>
@@ -178,7 +228,7 @@
       .map(m => `<li><b>${m.c.emoji} ${esc(m.c.title)}:</b> ${esc(COMBOS[m.c.id])}</li>`).join("");
     if (combos) stream += `<h3>Subjects for your top careers</h3><ul class="rp-list">${combos}</ul>`;
 
-    // 7. Exam timeline
+    // 8. Exam timeline
     const seen = new Set(), rows = [];
     fit.slice(0, 5).forEach(m => m.c.exams.forEach(e => {
       if (!seen.has(e[0]) && rows.length < 10) { seen.add(e[0]); rows.push({ e, c: m.c }); }
@@ -190,14 +240,14 @@
          <p class="small muted">Dates and patterns change every year. Confirm on each exam's official website (start with nta.ac.in).</p>`
       : `<p>None of your top careers fit your current stream directly. Talk to a counsellor about bridge routes.</p>`;
 
-    // 8. Action plan
+    // 9. Action plan
     const article = /^[aeiou]/i.test(lead.title) ? "an" : "a";
     const fill = s => s.replace(/\ba \{career\}/g, `${article} ${lead.title}`).replace(/\{career\}/g, lead.title)
       .replace(/\{skill\}/g, lead.skills[0]).replace(/\{try\}/g, lead.tryNow[0]);
     const plan = `<p>Built around your top match for your stage, <b>${esc(lead.title)}</b>. Tick each month off as you go.</p>
       <ol class="rp-plan">${(C.plans[stage] || C.plans.c).map((s, i) => `<li><span class="rp-month">Month ${i + 1}</span>${esc(fill(s))}</li>`).join("")}</ol>`;
 
-    // 9. Parents
+    // 10. Parents
     const P = C.parents;
     const parents = `${App().parentSummary(p, ranked)}
       <p><b>At this stage:</b> ${esc(P.byStage[stage] || "")}</p>
@@ -208,7 +258,7 @@
       </div>`;
 
     const bodies = {
-      glance, interests, aptitude, stream, exams, plan, parents,
+      glance, interests, aptitude, inside, stream, exams, plan, parents,
       personality: `<div class="rp-pair">${personality}</div>`,
       careers: `<div class="rp-careers">${careers}</div>`
     };

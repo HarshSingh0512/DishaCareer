@@ -3,8 +3,14 @@
    it with the student's own scores to build the report.
    Plan tokens {career}, {skill} and {try} are filled in by the browser from the
    student's top career. */
+import { ONET_DEEP } from "./onet-deep.js";
+
 export const REPORT_CONTENT = {
-  version: 1,
+  version: 2,
+
+  // "Inside your top 3 careers": tasks, skills, knowledge, work context and job
+  // titles per career, from O*NET (see onet-deep.js for the source and licence).
+  deep: ONET_DEEP,
 
   // Holland RIASEC interest types.
   types: {

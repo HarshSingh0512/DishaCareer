@@ -4,7 +4,10 @@
    Match score (0–100) for one career combines:
      interests    50%  how the student's 6 Holland (RIASEC) scores line up with the
                        career's profile: its shape (correlation over all 6 types)
-                       and the strength of the career's 3 letters
+                       and the strength of the career's 3 letters. The career's
+                       profile is O*NET's measured interest profile (js/onet.js)
+                       where one exists ("onet" method), otherwise one built from
+                       its hand-picked Holland code ("holland" method).
      subjects     25%  how much the student enjoys, and how well they score in, the
                        subjects this career uses (from the "Your subjects" chapter),
                        plus things they love outside class
@@ -75,10 +78,29 @@ window.DishaScoring = (function () {
     return dx && dy ? num / Math.sqrt(dx * dy) : 0;
   }
 
+  // O*NET's measured profile (1–7 per type) rescaled to 0–100, or null.
+  const METHODS = ["onet", "holland"];
+  function onetProfile(c) {
+    const o = typeof window !== "undefined" && window.CAREER_ONET && window.CAREER_ONET[c.id];
+    if (!o) return null;
+    const v = {};
+    TYPES.forEach((t, i) => { v[t] = (o.r[i] - 1) / 6 * 100; });
+    return v;
+  }
+  const useOnet = (c, method) => method !== "holland" && onetProfile(c);
+
+  // The career's 3-letter code as used for matching and shown to students:
+  // its top 3 O*NET types, or the hand-picked code.
+  function codeFor(c, method) {
+    const v = useOnet(c, method);
+    return v ? TYPES.slice().sort((x, y) => v[y] - v[x]).slice(0, 3).join("") : c.code;
+  }
+
   const CODE_WEIGHTS = [3, 2, 1];
-  function interestFit(code, p) {
+  function interestFit(c, p, method) {
+    const code = codeFor(c, method);
     // Shape: does the student's whole profile look like this career's?
-    const shape = 50 + 50 * correlation(p.r, careerProfile(code));
+    const shape = 50 + 50 * correlation(p.r, useOnet(c, method) || careerProfile(code));
     // Strength: how strong are the student's interests in this career's letters?
     const strength = code.split("").reduce((s, l, i) => s + CODE_WEIGHTS[i] * p.r[l], 0) / 6;
     return 0.65 * shape + 0.35 * strength;
@@ -187,8 +209,9 @@ window.DishaScoring = (function () {
     };
   }
 
-  function match(c, p, careerApt) {
-    const interest = interestFit(c.code, p);
+  // method: "onet" (default) or "holland" (hand-picked codes only, for comparison).
+  function match(c, p, careerApt, method) {
+    const interest = interestFit(c, p, method);
     const personality = personalityFit(c.b5, p.b);
     const subjects = subjectFit(c.subjects, p.subj);
     const values = valuesFit(p.fav.values, c.values);
@@ -200,5 +223,5 @@ window.DishaScoring = (function () {
     return { score: Math.round(Math.max(1, Math.min(99, score))), interest, personality, subjects, values, aptitude: apt };
   }
 
-  return Object.freeze({ TYPES, TRAITS, WEIGHTS, riasec, relative, bigFive, aptitude, subjectSet, subjectEvidence, profile, match });
+  return Object.freeze({ TYPES, TRAITS, WEIGHTS, METHODS, riasec, relative, bigFive, aptitude, subjectSet, subjectEvidence, profile, match, codeFor });
 })();

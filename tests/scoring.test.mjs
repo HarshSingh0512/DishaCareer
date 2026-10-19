@@ -8,7 +8,7 @@ import vm from "node:vm";
 
 const ctx = { window: {} };
 vm.createContext(ctx);
-for (const f of ["questions", "careers", "extras", "aptitude", "scoring"]) {
+for (const f of ["questions", "careers", "extras", "onet", "aptitude", "scoring"]) {
   vm.runInContext(fs.readFileSync(new URL(`../public/js/${f}.js`, import.meta.url), "utf8"), ctx);
 }
 const { QUIZ: Q, CAREERS, CAREER_META: META, CAREER_APTITUDES: CA, DishaScoring: S } = ctx.window;
@@ -107,4 +107,28 @@ test("half-rated subjects are ignored, and old saved results still work", () => 
   const none = { ...STUDENTS.pcm, subj: {}, fav: { subjects: [], values: [] } };
   const p = S.profile(Q, none, null);
   assert.ok(CAREERS.every(c => S.match(c, p, CA).subjects === 50));
+});
+
+test("O*NET profiles are valid and drive the default method", () => {
+  const ONET = ctx.window.CAREER_ONET;
+  const ids = new Set(CAREERS.map(c => c.id));
+  for (const [id, o] of Object.entries(ONET)) {
+    assert.ok(ids.has(id), `O*NET profile for unknown career ${id}`);
+    assert.equal(o.r.length, 6, id);
+    assert.ok(o.r.every(v => v >= 1 && v <= 7), `${id}: values must be on O*NET's 1-7 scale`);
+    assert.ok(o.soc.length && o.soc.every(s => /^\d{2}-\d{4}\.\d{2}$/.test(s)), `${id}: bad O*NET-SOC code`);
+  }
+  for (const c of CAREERS) {
+    const code = S.codeFor(c);
+    assert.match(code, /^[RIASEC]{3}$/, c.id);
+    assert.equal(new Set(code).size, 3, `${c.id}: repeated letter`);
+    assert.equal(S.codeFor(c, "holland"), c.code, `${c.id}: the holland method uses the hand-picked code`);
+    if (!ONET[c.id]) assert.equal(code, c.code, `${c.id}: no O*NET data, so it keeps its own code`);
+  }
+  // A strongly Conventional + Enterprising student: accountant ranks high under both methods.
+  const p = S.profile(Q, STUDENTS.commerce, null);
+  for (const method of S.METHODS) {
+    const top = CAREERS.map(c => ({ id: c.id, s: S.match(c, p, CA, method).score })).sort((a, b) => b.s - a.s).slice(0, 3).map(x => x.id);
+    assert.ok(top.includes("ca"), `${method}: ${top}`);
+  }
 });

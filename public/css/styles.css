@@ -649,6 +649,21 @@ input[type="email"]:focus, input[type="tel"]:focus { outline: none; border-color
 .rp-month { font-size: .75rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--primary); }
 .rp-note p { margin: 0; font-size: .9rem; }
 .rp-gate .card { margin-top: 1rem; }
+/* Full Report: "Inside your top 3 careers" (O*NET) */
+.rp-inside { --c: var(--primary); margin-top: 1.4rem; }
+.rp-inside h4 { margin-top: .9rem; }
+.rp-bars { list-style: none; padding: 0; margin: .4rem 0; display: grid; gap: .45rem; }
+.rp-bars li { display: grid; grid-template-columns: minmax(0, 1fr) 40%; gap: .7rem; align-items: center; font-size: .9rem; }
+.rp-bar { height: 8px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.rp-bar i { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.rp-gap { display: grid; gap: .5rem; margin-top: .4rem; }
+.rp-gap-row { display: flex; flex-wrap: wrap; gap: .35rem .8rem; align-items: center; justify-content: space-between; padding: .6rem .8rem; border-radius: var(--radius-sm); background: var(--glass); border: 1px solid var(--glass-border); font-size: .92rem; }
+.gap { font-size: .8rem; font-weight: 700; padding: .2rem .6rem; border-radius: 999px; }
+.gap-strong { color: var(--S); background: color-mix(in srgb, var(--S) 14%, transparent); }
+.gap-ok { color: var(--warn); background: var(--warn-soft); }
+.gap-build { color: var(--pcb); background: color-mix(in srgb, var(--pcb) 14%, transparent); }
+.gap-learn, .gap-unknown { color: var(--muted); background: var(--surface-2); }
+@media print { .rp-inside { break-inside: avoid-page; } .rp-gap-row { background: #fff; border-color: #ddd; } .rp-bar { background: #eee; } }
 .rp-price { font-size: 1.5rem; font-weight: 800; color: var(--primary); }
 @media print {
   .rp { padding: 0; }
@@ -878,6 +893,31 @@ body { transition: background-color .4s ease, color .4s ease; }
   box-shadow: 0 0 calc(var(--glow-r) * 1.7) -4px var(--c); transition: transform .15s, background .2s; }
 .ob-chips a:hover { transform: translateY(-2px); background: color-mix(in srgb, var(--c) 28%, transparent); }
 .ob-chips a.all { background: var(--band-btn-bg); color: var(--band-btn-fg); border-color: var(--band-btn-bg); box-shadow: none; }
+
+/* "Do your top 3 careers feel right?" rating under the results.
+   Hovering a star lights it and the ones before it. */
+.feedback { margin-top: 1.25rem; text-align: center; }
+.feedback h2 { font-size: 1.2rem; }
+.fb-stars { display: inline-flex; gap: .35rem; margin: .5rem 0 .25rem; }
+.fb-star { width: 48px; height: 48px; border-radius: 14px; border: 1px solid var(--glass-border); background: var(--glass); color: var(--border); font-size: 1.6rem; line-height: 1; transition: color .12s, transform .12s; }
+.fb-stars:hover .fb-star, .fb-star:focus-visible { color: var(--accent); }
+.fb-star:hover ~ .fb-star { color: var(--border); }
+.fb-star:hover { transform: scale(1.12); }
+.fb-scale { display: flex; justify-content: space-between; max-width: 270px; margin: 0 auto; }
+.feedback-done { text-align: center; margin: 1.25rem 0 0; }
+/* The rating needs the API: hide it on deploys without one (stats.js sets data-stats). */
+:root:not([data-stats="on"]) .feedback { display: none; }
+
+/* Owner-only accuracy page (#/insights). */
+.insights .card { margin-top: 1rem; }
+.ins-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+.ins-kpis .card { display: grid; gap: .1rem; text-align: center; }
+.ins-kpis b { font-family: var(--font-display); font-size: 2rem; color: var(--primary); }
+.ins-kpis span { font-size: .85rem; color: var(--muted); }
+.ins-table { display: grid; margin-top: .75rem; overflow-x: auto; }
+.ins-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(80px, 1fr); gap: .75rem; padding: .5rem .25rem; border-bottom: 1px solid var(--border); font-size: .92rem; }
+.ins-head { font-weight: 700; color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; }
+@media (max-width: 560px) { .ins-kpis { grid-template-columns: 1fr; } }
 
 /* Line-art icons in violet tiles (replace the old emoji tiles). */
 .f-ico { flex: none; display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 16px; background: var(--primary-soft); margin-bottom: .75rem; }

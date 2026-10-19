@@ -268,6 +268,10 @@ test("Full Report content is only served to owners", async () => {
   assert.deepEqual(Object.keys(open.json.content.types).sort(), ["A", "C", "E", "I", "R", "S"]);
   assert.equal(open.json.content.traits.O.length, 3);
   assert.equal(open.json.content.plans.s.length, 6);
+  // "Inside your top 3 careers" (O*NET) comes with the paid content only.
+  const sw = open.json.content.deep.software;
+  assert.ok(sw.tasks.length >= 3 && sw.skills.length >= 3 && sw.knowledge.length >= 3 && sw.titles.length >= 3);
+  assert.equal(sw.context.length, 7);
   assert.equal(open.headers.get("cache-control"), "no-store");
 
   // Plus includes the report.
@@ -374,4 +378,32 @@ test("public visitor counter: unique visitors, visits, quizzes", async () => {
 
   // Other sites can't bump the numbers.
   assert.equal((await c.req("/api/stats/visit", { method: "POST", body: { firstTime: true }, origin: "https://evil.example" })).status, 403);
+});
+
+test("results feedback: validation, success, other sites blocked", async () => {
+  const c = new Client();
+  const send = (body, opts = {}) => c.req("/api/feedback", { method: "POST", body, ...opts });
+  const good = { rating: 4, method: "onet", stage: "s", top: ["software", "robotics", "ai"] };
+  assert.equal((await send(good)).json.ok, true);
+  assert.equal((await send({ ...good, stage: null, top: ["ux"] })).status, 200);
+  for (const bad of [{ rating: 0 }, { rating: 6 }, { rating: 4.5 }, { method: "ml" }, { stage: "x" },
+    { top: [] }, { top: ["a", "b", "c", "d"] }, { top: ["<script>"] }, { top: "software" }]) {
+    assert.equal((await send({ ...good, ...bad })).status, 400, JSON.stringify(bad));
+  }
+  assert.equal((await send(good, { origin: "https://evil.example" })).status, 403);
+});
+
+test("feedback summary: owner password required, totals only", async () => {
+  const ADMIN = process.env.ADMIN_SECRET || "local-admin-secret-for-tests";
+  const c = new Client();
+  assert.equal((await c.req("/api/feedback/summary")).status, 401);
+  assert.equal((await c.req("/api/feedback/summary", { headers: { "X-Admin-Secret": "wrong-password-123456" } })).status, 401);
+  await c.req("/api/feedback", { method: "POST", body: { rating: 5, method: "holland", stage: "h", top: ["lawyer"] } });
+  const ok = await c.req("/api/feedback/summary", { headers: { "X-Admin-Secret": ADMIN } });
+  assert.equal(ok.status, 200, ok.text);
+  assert.equal(ok.headers.get("cache-control"), "no-store");
+  for (const k of ["byMethod", "byStage", "byMethodStage", "last30", "careers", "spread"]) assert.ok(Array.isArray(ok.json[k]), k);
+  assert.ok(ok.json.byMethod.some(r => r.method === "holland" && r.ratings >= 1));
+  // Aggregates only: no row ids, days per rating or anything per person.
+  assert.ok(!JSON.stringify(ok.json).includes('"id"'));
 });

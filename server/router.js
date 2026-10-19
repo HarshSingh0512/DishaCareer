@@ -1,5 +1,5 @@
 /* Routes every /api request. Called from server/worker.js.
-   The visitor counter and the daily job always run. Everything else (accounts,
+   The visitor counter, the results feedback rating and the daily job always run. Everything else (accounts,
    consent, payments, report, Plus) answers only when ACCOUNTS_ENABLED=true, so
    the counter can go live before email and payments are set up. While accounts
    are off, /api/me answers 503 and the site keeps those links hidden. */
@@ -12,6 +12,7 @@ import * as bookings from "./bookings.js";
 import { reportContent } from "./report.js";
 import * as plus from "./plus.js";
 import * as stats from "./stats.js";
+import * as feedback from "./feedback.js";
 
 // [method, path, handler, options]
 // options.always: available even while accounts are switched off.
@@ -19,6 +20,9 @@ const ROUTES = [
   ["GET", "/api/stats", stats.getStats, { always: true }],
   ["POST", "/api/stats/visit", stats.visit, { always: true }],
   ["POST", "/api/stats/quiz", stats.quiz, { always: true }],
+  ["POST", "/api/feedback", feedback.submit, { always: true }],
+  // Owner-only accuracy summary, authenticated by the X-Admin-Secret header.
+  ["GET", "/api/feedback/summary", feedback.summary, { always: true }],
   ["POST", "/api/auth/start", auth.start],
   ["POST", "/api/auth/verify", auth.verify],
   ["POST", "/api/auth/logout", auth.logout],

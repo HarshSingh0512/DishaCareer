@@ -8,6 +8,8 @@ ACCOUNTS_ENABLED=true
 PLANS_ON_SALE=true
 # For tests of the daily job over HTTP (the scheduled run doesn't need it):
 CRON_SECRET=local-cron-secret-for-tests
+# Password for the owner-only accuracy page (#/insights), 16+ characters.
+ADMIN_SECRET=local-admin-secret-for-tests
 RAZORPAY_WEBHOOK_SECRET=test-webhook-secret
 # Optional locally (without them, emails print to the console and payments are simulated):
 # RESEND_API_KEY=

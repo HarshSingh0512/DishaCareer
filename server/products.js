@@ -15,6 +15,7 @@ export const PRODUCTS = {
       { text: "A detailed report you can save as PDF and print" },
       { text: "Deep dive into your interests, personality and aptitude" },
       { text: "Your top 10 careers: why they fit, pay, exams and colleges" },
+      { text: "Inside your top 3 careers: daily tasks, skills, work environment, job titles and your gap" },
       { text: "Stream and subject advice with the reasons behind it" },
       { text: "Your personal entrance-exam timeline" },
       { text: "A month-by-month 6-month action plan" },

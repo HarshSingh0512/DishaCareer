@@ -102,10 +102,19 @@ add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" alway
   remembered in its own storage. Counting endpoints require our own Origin and are
   rate-limited per hashed IP (generously, so a school lab sharing one connection
   still counts). Over the limit, a visit is simply not counted.
+- **Results rating** ("Do your top 3 careers feel right?"): stores only the day,
+  matching method, class band, 1–5 rating and three career ids. Input is strictly
+  validated, our own Origin is required, and it is limited to 20 ratings per hashed
+  IP a day.
+- **Accuracy page** (`/#/insights`): reads totals only from
+  `GET /api/feedback/summary`. That endpoint needs the `ADMIN_SECRET` password in
+  the `X-Admin-Secret` header (compared in constant time). It is limited to 20
+  tries an hour per hashed IP, answers `404` while no password is set, and is
+  never cached.
 - **Accounts switch**: with `ACCOUNTS_ENABLED` unset, every account, consent,
   payment, report and Plus endpoint answers `503`, so the counter can be live before
   email and payments are configured.
-- **Secrets** (`APP_SECRET`, `CRON_SECRET`, email and Razorpay keys) live in Cloudflare secrets,
+- **Secrets** (`APP_SECRET`, `CRON_SECRET`, `ADMIN_SECRET`, email and Razorpay keys) live in Cloudflare secrets,
   never in the repo; `.dev.vars` is git-ignored. `DEV_MODE` (which shows codes on
   screen and simulates payments) must never be set in production.
 

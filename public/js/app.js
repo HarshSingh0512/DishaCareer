@@ -11,7 +11,11 @@
   /* Set this to your counsellor's booking link (an https URL, or a
      https://wa.me/<number> link) to show a "Talk to a counsellor" button.
      Leave it empty to hide the button. */
-  const CONFIG = { counsellorUrl: "" };
+  /* abTest: while true, each device is randomly given either the O*NET matching
+     or the older hand-picked Holland codes (and keeps it), so the "Do your top 3
+     feel right?" ratings can show which is more accurate. Set it to false to give
+     everyone O*NET once enough ratings are in (see README, "Roadmap"). */
+  const CONFIG = { counsellorUrl: "", abTest: true };
 
   const Q = window.QUIZ;
   const CAREERS = window.CAREERS;
@@ -20,6 +24,7 @@
   const SCHOLARSHIPS = window.SCHOLARSHIPS || [];
   const APT = window.APTITUDE;
   const CAREER_APT = window.CAREER_APTITUDES || {};
+  const ONET = window.CAREER_ONET || {};
 
   // Prevent any accidental or malicious mutation of the data at runtime.
   function deepFreeze(obj) {
@@ -29,7 +34,7 @@
     }
     return obj;
   }
-  [Q, CAREERS, META, COMBOS, SCHOLARSHIPS, APT, CAREER_APT].forEach(deepFreeze);
+  [Q, CAREERS, META, COMBOS, SCHOLARSHIPS, APT, CAREER_APT, ONET].forEach(deepFreeze);
 
   const BY_ID = Object.fromEntries(CAREERS.map(c => [c.id, c]));
   const APT_AREAS = Object.keys(APT.areas);
@@ -198,7 +203,21 @@
   const scoreB5 = () => SC.bigFive(Q, state.answers);
   const scoreApt = () => SC.aptitude(APT, state.apt.ans); // percent correct per aptitude area
   const buildProfile = () => SC.profile(Q, state.answers, state.apt.done ? scoreApt() : null);
-  const matchCareer = (c, p) => SC.match(c, p, CAREER_APT);
+  // Which matching method this device uses (see CONFIG.abTest).
+  const METHOD_KEY = "disha.method";
+  const METHOD = (() => {
+    if (!CONFIG.abTest) return "onet";
+    try {
+      let m = localStorage.getItem(METHOD_KEY);
+      if (!SC.METHODS.includes(m)) {
+        m = crypto.getRandomValues(new Uint8Array(1))[0] < 128 ? "onet" : "holland";
+        localStorage.setItem(METHOD_KEY, m);
+      }
+      return m;
+    } catch (e) { return "onet"; } // storage blocked: no stable group, so no comparison
+  })();
+  const matchCareer = (c, p) => SC.match(c, p, CAREER_APT, METHOD);
+  const codeOf = c => SC.codeFor(c, METHOD); // the 3 interest types shown for a career
 
   // The subjects asked about for this student's class/stream, and whether every
   // one they study has both an enjoyment and a marks answer.
@@ -213,7 +232,7 @@
 
   function reasonsFor(c, p) {
     const out = [];
-    const strong = c.code.split("").filter(l => p.rel[l] >= 60).map(l => Q.types[l].noun.toLowerCase());
+    const strong = codeOf(c).split("").filter(l => p.rel[l] >= 60).map(l => Q.types[l].noun.toLowerCase());
     if (strong.length) out.push(`Fits your ${strong.join(" + ")} side`);
     const apts = p.apt ? (CAREER_APT[c.id] || []).filter(k => p.apt[k] >= 75).map(k => APT.areas[k].name.toLowerCase()) : [];
     if (apts.length) out.push(`Plays to your strength in ${apts.join(" & ")}`);
@@ -433,6 +452,10 @@
         <p>If you finish the optional Aptitude Challenge, it becomes a fifth input worth <b>10%</b> (interests become 45%, subjects 22% and personality 13%). Each career is linked to the two aptitudes it uses most, such as logic and numbers for a software engineer.</p>
         <p>Careers that are genuinely similar for you, such as two kinds of engineering, will have close scores. That is honest, not a flaw: read the reasons on each card to choose between them.</p>
         <p>Each match card shows the main reasons it was chosen, so nothing is a black box.</p>
+        <h3>Where the career profiles come from</h3>
+        <p>Each career's interest profile comes from <b>O*NET</b>, a database built by surveying real workers in about 900 occupations. For each Disha career we use the closest occupations, averaged, which is more accurate than picking three letters by hand. Three careers with no fair equivalent in that data (Civil Services, Entrepreneur and Defence Officer) keep Disha's own codes.</p>
+        <p>We are also measuring how accurate this is: some devices still use Disha's earlier hand-picked codes, and the "Do your top 3 careers feel right?" rating under your results tells us which method works better for Indian students.</p>
+        <p class="small muted">Contains information from the <a href="https://www.onetcenter.org/database.html" target="_blank" rel="noopener noreferrer">O*NET 31.0 Database</a> by the U.S. Department of Labor, Employment and Training Administration (USDOL/ETA), used under the <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a> licence. Disha averaged related occupations into one profile per career. O*NET® is a trademark of USDOL/ETA.</p>
       </div>
 
       <div class="card m-limits">
@@ -1018,6 +1041,39 @@
     </section>`;
   }
 
+  /* "Do your top 3 feel right?" Sends one anonymous rating (see server/feedback.js)
+     and remembers on this device which top 3 it has rated, so it asks once per
+     result. Hidden on deploys without the API (CSS keys off data-stats="on"). */
+  const FEEDBACK_KEY = "disha.feedback";
+  const FEEDBACK_WORDS = ["Not at all", "Not really", "Partly", "Mostly", "Spot on"];
+  const feedbackId = top => METHOD + ":" + top.join(",");
+  function feedbackCard(top) {
+    let done = false;
+    try { done = localStorage.getItem(FEEDBACK_KEY) === feedbackId(top); } catch (e) { /* storage blocked */ }
+    if (done) return `<p class="feedback-done small muted no-print">Thanks for rating your matches. It helps make Disha more accurate.</p>`;
+    return `<div class="card feedback no-print" data-top="${esc(top.join(","))}">
+      <h2>Do your top 3 careers feel right?</h2>
+      <p class="small muted">One tap. Anonymous, and it helps make Disha more accurate for everyone.</p>
+      <div class="fb-stars" role="group" aria-label="How right do your top 3 careers feel?">${FEEDBACK_WORDS.map((w, i) => `
+        <button type="button" class="fb-star" data-act="feedback" data-v="${i + 1}" aria-label="${i + 1} of 5: ${esc(w)}" title="${esc(w)}">★</button>`).join("")}
+      </div>
+      <p class="fb-scale small muted" aria-hidden="true"><span>${esc(FEEDBACK_WORDS[0])}</span><span>${esc(FEEDBACK_WORDS[4])}</span></p>
+    </div>`;
+  }
+  async function sendFeedback(b) {
+    const card = b.closest(".feedback"), rating = Number(b.dataset.v);
+    const top = card.dataset.top.split(",").filter(id => BY_ID[id]).slice(0, 3);
+    if (!(rating >= 1 && rating <= 5) || !top.length) return;
+    card.innerHTML = `<p class="feedback-done">Thanks! You rated your matches <b>${esc(FEEDBACK_WORDS[rating - 1].toLowerCase())}</b>.</p>`;
+    try { localStorage.setItem(FEEDBACK_KEY, feedbackId(top)); } catch (e) { /* storage blocked */ }
+    try {
+      await fetch("/api/feedback", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating, method: METHOD, stage: state.profile ? state.profile.stage : null, top })
+      });
+    } catch (e) { /* offline: the thank-you still shows; one lost rating is fine */ }
+  }
+
   function renderResults() {
     if (!state.done) return go("#/");
     const p = buildProfile(), ranked = rank(p);
@@ -1069,6 +1125,8 @@
 
       <h2 class="section-title">Your top career matches</h2>
       <div class="matches">${ranked.slice(0, 6).map(m => matchCard(m, p, true)).join("")}</div>
+
+      ${feedbackCard(ranked.slice(0, 3).map(m => m.c.id))}
 
       ${wild ? wildcard(wild, p) : ""}
 
@@ -1157,7 +1215,7 @@
     }).join("");
 
     const related = CAREERS
-      .filter(x => x.id !== c.id && (x.cluster === c.cluster || x.code[0] === c.code[0]))
+      .filter(x => x.id !== c.id && (x.cluster === c.cluster || codeOf(x)[0] === codeOf(c)[0]))
       .map(x => ({ x, s: p ? matchCareer(x, p).score : null }))
       .sort((a, b) => (b.s || 0) - (a.s || 0))
       .slice(0, 3);
@@ -1174,7 +1232,7 @@
           <p class="lead">${esc(c.summary)}</p>
           <div class="tags">
             ${c.streams.map(s => `<span class="tag">${esc(META.streams[s])}</span>`).join("")}
-            ${c.code.split("").map(ty => `<span class="tag" style="--c:var(--${ty})">${Q.types[ty].emoji} ${esc(Q.types[ty].name)}</span>`).join("")}
+            ${codeOf(c).split("").map(ty => `<span class="tag" style="--c:var(--${ty})">${Q.types[ty].emoji} ${esc(Q.types[ty].name)}</span>`).join("")}
             ${c.offbeat ? `<span class="tag offbeat-tag">✨ Offbeat</span>` : ""}
           </div>
           ${streamWarn(c, true)}
@@ -1314,7 +1372,7 @@
         ${row("💰 Starting pay", c => esc(c.pay))}
         ${row("📈 Future outlook", c => esc(c.outlook))}
         ${row("📚 Stream in Class 11–12", c => `<div class="tags">${c.streams.map(s => `<span class="tag">${esc(META.streams[s])}</span>`).join("")}</div>${streamWarn(c)}`)}
-        ${row("🎨 Suits people who are", c => `<div class="tags">${c.code.split("").map(ty => `<span class="tag" style="--c:var(--${ty})">${Q.types[ty].emoji} ${esc(Q.types[ty].name)}</span>`).join("")}</div>`)}
+        ${row("🎨 Suits people who are", c => `<div class="tags">${codeOf(c).split("").map(ty => `<span class="tag" style="--c:var(--${ty})">${Q.types[ty].emoji} ${esc(Q.types[ty].name)}</span>`).join("")}</div>`)}
         ${row("🧩 Aptitudes it uses", c => (CAREER_APT[c.id] || []).map(k => `${APT.areas[k].emoji} ${esc(APT.areas[k].name)}${mine ? ` <b>(you: ${mine[k]}%)</b>` : ""}`).join("<br>"))}
         ${row("📝 Key entrance exams", c => list(c.exams.slice(0, 3).map(e => e[0])))}
         ${row("🏫 Top places to study", c => list(c.colleges.slice(0, 3)))}
@@ -1485,6 +1543,7 @@
     pick,
     back,
     forward,
+    feedback: sendFeedback,
     fav: toggleFav,
     subjLike: b => rateSubject(b, "like"),
     subjMarks: b => rateSubject(b, "marks"),

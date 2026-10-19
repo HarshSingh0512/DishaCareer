@@ -73,7 +73,9 @@ keeps the same address as a drag-and-drop upload of `public/`.
 2. `npx wrangler d1 create disha` and paste the printed `database_id` into
    `wrangler.toml`. Set `SITE_URL` there to your live address.
 3. `npm run db:migrate:remote`
-4. `npx wrangler secret put APP_SECRET` (64+ random characters)
+4. `npx wrangler secret put APP_SECRET` (64+ random characters). Optionally also
+   `npx wrangler secret put ADMIN_SECRET`, the password for the private accuracy
+   page `/#/insights` (16+ characters).
 5. `npm run deploy`
 
 Accounts stay off: the site shows the counter and hides account, report, Plus
@@ -119,6 +121,8 @@ files unlimited; D1: 5 GB).
 | `GET /api/plus/snapshots` · `POST /api/plus/snapshots` | Term-by-term result snapshots |
 | `POST /api/cron/daily` | Run the daily job by hand (needs `X-Cron-Secret`; it also runs on the cron trigger) |
 | `GET /api/stats` · `POST /api/stats/visit` · `POST /api/stats/quiz` | Public visitor counter: anonymous totals of visitors, visits and quizzes taken (always on) |
+| `POST /api/feedback` | "Do your top 3 careers feel right?" rating: day, method, class band, 1–5 and the 3 career ids, nothing personal (always on, 20 per device a day) |
+| `GET /api/feedback/summary` | Totals for the private `/#/insights` page; needs the `X-Admin-Secret` header to match `ADMIN_SECRET` (404 while it's unset) |
 
 Plans and prices live in `server/products.js` (server-side only).
 
@@ -126,6 +130,12 @@ Plans and prices live in `server/products.js` (server-side only).
 
 - **6-chapter quiz** measuring interests (Holland RIASEC), personality (Big Five) and, per subject, how much the student enjoys it and their usual marks (subjects follow their class and stream).
 - **Optional Aptitude Challenge** (`#/aptitude`), counted as 10% of match scores.
+- **O\*NET career profiles**: 47 of the 50 careers use measured interest profiles
+  from the O\*NET 31.0 database (`public/js/onet.js`); IAS, Entrepreneur and Defence
+  keep hand-picked codes. While `CONFIG.abTest` is on (`public/js/app.js`), each
+  device is randomly given O\*NET or the older hand-picked codes, to compare them.
+- **"Do your top 3 careers feel right?"** rating under the results (anonymous,
+  `POST /api/feedback`), which measures real accuracy.
 - **Compare careers** (`#/compare/a,b,c`), up to 3 side by side.
 - **Offbeat careers** on the home compass, an Explore filter and a results "Wildcard".
 - **Match scores with reasons**, stage-aware guidance and a "You are here" roadmap.
@@ -134,7 +144,11 @@ Plans and prices live in `server/products.js` (server-side only).
 - **Accounts (optional)**: save results across devices, parent consent for under-18s,
   data download and account deletion.
 - **Plans & payments** via Razorpay (hidden until `PLANS_ON_SALE=true`).
-- **Full Report** (`#/report`, ₹499): a 9-section personal report, saved as PDF.
+- **Full Report** (`#/report`, ₹499): a 10-section personal report, saved as PDF.
+  Section 6, "Inside your top 3 careers", uses O\*NET data (`server/onet-deep.js`,
+  paid content served only to owners). It shows daily tasks, the skills used most,
+  what the work is like, job titles, and a "your gap" check of each knowledge area
+  against the student's own subject ratings.
 - **Disha Plus** (`#/plus`, ₹1,999/year): "This month for you" calendar of exams,
   Olympiads, scholarships and school milestones matched to the student's class and
   careers (edit `server/plus-calendar.js` each year), a monthly reminder email, and
@@ -162,10 +176,63 @@ every year. Review the career and extras data once a year against official
 sources (nta.ac.in, NMC/MCC, the CLAT Consortium, JoSAA, NIRF, ICAI, UPSC,
 scholarships.gov.in).
 
+## Measuring accuracy (O\*NET vs hand-picked codes)
+
+**Easiest way: the private page `/#/insights`.** It isn't linked anywhere. Set a
+password once as the `ADMIN_SECRET` secret (16+ characters; Cloudflare → Worker →
+Settings → Variables and secrets → Secret), then open the page and enter it. It
+shows:
+- how many students say their top 3 feel right;
+- O\*NET vs hand-picked codes, with a check of whether the gap is real or chance;
+- results by class, the lowest-rated careers, the star spread and the last 30 days.
+
+It shows totals only, and allows 20 password tries per hour per device.
+
+Or run SQL yourself. Ratings are stored in the `match_feedback` table. To compare
+the two methods, run this in the Cloudflare dashboard (**D1 → disha → Console**):
+
+```sql
+SELECT method, COUNT(*) AS ratings, ROUND(AVG(rating), 2) AS avg_rating,
+       ROUND(100.0 * SUM(rating >= 4) / COUNT(*), 1) AS pct_feels_right
+FROM match_feedback GROUP BY method;
+```
+
+Wait for a few hundred ratings per method before drawing a conclusion. If O\*NET
+wins, set `abTest: false` in `CONFIG` (`public/js/app.js`) so everyone gets it.
+
 ## Roadmap (next)
 
-- Monthly aptitude practice packs (the last "coming soon" item in Disha Plus).
-- Full Hindi for every question and career; a counsellor/school view.
+1. ✅ **Feedback rating** and ✅ **O\*NET matching (free)** are built (see above).
+2. ✅ **O\*NET Deep Career Report**: built as section 6 of the ₹499 Full Report
+   (tasks, skills, work environment, job titles, your gap). Still possible: more of
+   the free [O\*NET database](https://www.onetcenter.org/database.html) (CC BY 4.0,
+   credit the U.S. Department of Labor, ETA):
+   - **Paid depth:** day-to-day work activities, skills and knowledge needed,
+     work environment, specialisations (about 900 occupations) and a "your gap"
+     breakdown per career.
+   - **Optional extra paid section (3–4 minutes):** work values and a skills
+     self-rating, asked only to students who buy the deep report. The free quiz
+     stays at 6 chapters.
+   - O\*NET is US data, so keep local judgement for India-specific careers
+     (CA, IAS, defence).
+3. **Monthly aptitude practice packs** (the last "coming soon" item in Disha Plus).
+4. **Full Hindi** for every question and career; a **counsellor/school view**.
+
+**Pricing principles.**
+- **Free:** the matching and its accuracy, the top careers, the stream advice and
+  the basic roadmap. Trust drives upgrades, and students who can't pay still get
+  honest guidance.
+- **Paid:** depth (the Deep Report), year-round help (Plus) and people
+  (counsellors).
+- **Selling:**
+  - Show one deep section free, then "unlock the rest".
+  - Make the report easy to share with parents, who are the buyers.
+  - Show all three plans side by side so the price comparison is clear.
+  - Promote during stream-choice and admission season.
+  - Sell bulk access to schools.
+
+Add a feature to a plan in `server/products.js` only once it is built
+(`soon: true` while it is not), so nobody pays for a promise.
 
 ## License
 
