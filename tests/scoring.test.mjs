@@ -8,7 +8,7 @@ import vm from "node:vm";
 
 const ctx = { window: {} };
 vm.createContext(ctx);
-for (const f of ["questions", "careers", "aptitude", "scoring"]) {
+for (const f of ["questions", "careers", "extras", "aptitude", "scoring"]) {
   vm.runInContext(fs.readFileSync(new URL(`../public/js/${f}.js`, import.meta.url), "utf8"), ctx);
 }
 const { QUIZ: Q, CAREERS, CAREER_META: META, CAREER_APTITUDES: CA, DishaScoring: S } = ctx.window;
@@ -52,6 +52,17 @@ test("subject sets follow class and stream", () => {
   assert.ok(S.subjectSet(Q, { stage: "h", stream: "COM" }).core.includes("accounts"));
   assert.ok(S.subjectSet(Q, { stage: "m", stream: null }).core.includes("science"));
   assert.ok(S.subjectSet(Q, { stage: "s", stream: null }).core.includes("physics"));
+  // College follows the Class 12 stream, and can still add other subjects.
+  const comCollege = S.subjectSet(Q, { stage: "c", stream: "COM" });
+  assert.ok(comCollege.core.includes("accounts") && !comCollege.core.includes("physics"));
+  assert.ok(comCollege.optional.includes("physics"));
+  assert.ok(!comCollege.optional.some(k => comCollege.core.includes(k)));
+});
+
+test("every stream-restricted career has a route for other streams", () => {
+  const routes = ctx.window.BRIDGE_ROUTES;
+  for (const c of CAREERS.filter(c => !c.streams.includes("ANY"))) assert.ok(routes[c.id], `no bridge route for ${c.id}`);
+  for (const id of Object.keys(routes)) assert.ok(CAREERS.some(c => c.id === id), `route for unknown career ${id}`);
 });
 
 test("sample students get sensible top careers", () => {

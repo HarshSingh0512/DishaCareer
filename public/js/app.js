@@ -237,19 +237,39 @@
     const us = userStreams();
     return !us || c.streams.includes("ANY") || c.streams.some(s => us.includes(s));
   }
-  function streamWarn(c) {
+  // full: also spell out the routes open from the student's own stream (career page, Full Report).
+  function streamWarn(c, full) {
     if (streamOk(c)) return "";
     const need = c.streams.filter(s => s !== "ANY").map(s => META.streams[s]).join(" or ");
-    const tip = state.profile.stage === "c" ? "Look for bridge routes or related careers." : "Talk to a counsellor about your options.";
-    return `<p class="warn">⚠️ Usually needs ${esc(need)} in Class 11–12. ${tip}</p>`;
+    const college = state.profile.stage === "c";
+    const head = college ? `Most people get here through ${need} in Class 12.` : `Usually needs ${need} in Class 11–12.`;
+    const route = window.BRIDGE_ROUTES && window.BRIDGE_ROUTES[c.id];
+    if (full && route) {
+      const yours = find(META.userStreams, state.profile.stream).label;
+      return `<div class="warn"><p>⚠️ ${esc(head)}</p>
+        <p class="warn-route"><b>Routes from ${esc(yours)}:</b> ${esc(route)}</p></div>`;
+    }
+    const tip = route ? "See the roadmap for routes from your stream." : college ? "Look for related careers." : "Talk to a counsellor about your options.";
+    return `<p class="warn">⚠️ ${esc(head)} ${tip}</p>`;
   }
 
   /* ---------- router ---------- */
   let celebrate = false;
   function route() {
     const [page, arg] = location.hash.replace(/^#\/?/, "").split("/");
-    document.querySelectorAll(".nav a").forEach(a => a.classList.toggle("active", a.dataset.page === (page || "home")));
+    const current = page || "home";
+    document.body.dataset.page = current;
+    // A career page belongs to "Careers"; setting up and the quiz belong to "My route".
+    const section = current === "career" ? "explore" : current === "start" || current === "quiz" ? "results" : current;
+    document.querySelectorAll(".nav a, .tabbar a").forEach(a => {
+      const on = a.dataset.page === section;
+      a.classList.toggle("active", on);
+      if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    });
     document.getElementById("nav-results").hidden = !state.done;
+    const me = document.getElementById("tab-me");
+    me.setAttribute("href", state.done ? "#/results" : state.profile && answeredCount() > 0 ? "#/quiz" : "#/start");
+    me.querySelector("span").textContent = state.done ? "My route" : "Start";
     const views = {
       start: renderSetup,
       quiz: renderQuiz,
@@ -279,15 +299,36 @@
   }
 
   /* ---------- home ---------- */
-  // [emoji, label, career id] — each bubble links to that career's page.
+  // Line-art icons (24px grid). Static markup only, never user data.
+  const ICONS = {
+    research: '<path d="M9 3h6M10 3v6l-5 9.5A1.6 1.6 0 0 0 6.4 21h11.2a1.6 1.6 0 0 0 1.4-2.5L14 9V3M7.5 15h9"/>',
+    india: '<rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M7.5 14h3M13.5 14h3M7.5 17h3"/>',
+    route: '<path d="M4.5 20v-6l5.5-5.5h9.5M10 8.5l5 6h4.5"/><circle cx="4.5" cy="20" r="1.8"/><circle cx="19.5" cy="8.5" r="1.8"/>',
+    puzzle: '<path d="M4 4h6v2a2 2 0 1 0 4 0V4h6v6h-2a2 2 0 1 0 0 4h2v6h-6v-2a2 2 0 1 0-4 0v2H4z"/>',
+    compare: '<rect x="3" y="4" width="7.5" height="16" rx="2"/><rect x="13.5" y="4" width="7.5" height="16" rx="2"/>'
+  };
+  const icon = k => `<span class="f-ico" aria-hidden="true"><svg viewBox="0 0 24 24">${ICONS[k]}</svg></span>`;
+
+  // [label, career id, route-line colour]: clickable bubbles around the hero compass.
   // Deliberately offbeat: students already know doctor/engineer/CA; these spark curiosity.
   // Listed clockwise: four down the right side, then four up the left side.
-  const BUBBLES = [["🎮", "Game Designer", "gamedev"], ["🕵️", "Forensic Expert", "forensic"],
-    ["🚁", "Drone Pilot", "drone"], ["🔭", "Astronomer", "astro"],
-    ["🏺", "Archaeologist", "archaeologist"], ["🔐", "Ethical Hacker", "cyber"], ["📸", "Tiger Tracker", "wildlife"], ["🦾", "Robotics", "robotics"]];
+  const BUBBLES = [["Game Designer", "gamedev", "com"], ["Forensic Expert", "forensic", "pcb"], ["Drone Pilot", "drone", "pcm"], ["Astronomer", "astro", "hum"],
+    ["Archaeologist", "archaeologist", "hum"], ["Ethical Hacker", "cyber", "pcm"], ["Tiger Tracker", "wildlife", "pcb"], ["Robotics", "robotics", "com"]];
   // Bubbles sit on a 10-slot ring with the top (0) and bottom (5) slots left empty,
   // so nothing crowds the space directly above and below the compass.
   const bubbleSlot = i => (i < 4 ? i + 1 : i + 2);
+  const COMPASS_SVG = `<svg viewBox="0 0 100 100" aria-hidden="true">
+      <circle class="cp-ring" cx="50" cy="50" r="44"></circle>
+      <path class="cp-tick" d="M50 10v7M50 83v7M10 50h7M83 50h7"></path>
+      <g class="cp-needle"><path class="cp-n" d="M50 16 L58 50 L42 50 Z"></path><path class="cp-s" d="M50 84 L58 50 L42 50 Z"></path></g>
+      <circle class="cp-hub" cx="50" cy="50" r="6"></circle>
+    </svg>`;
+
+  // "Love something? There's a route for it.": more offbeat careers (none repeat the compass bubbles),
+  // each tinted with a route-line colour.
+  const OFFBEAT_PICKS = [["VFX Animator", "animator", "pcb"], ["Marine Biologist", "marine", "hum"], ["Climate Specialist", "climate", "pcm"],
+    ["Genetic Engineer", "biotech", "pcb"], ["Flavour Creator", "foodsci", "com"], ["Sound Designer", "sound", "pcm"],
+    ["Toy Designer", "industrial", "com"], ["Translator", "linguist", "hum"]];
 
   function renderHome() {
     const inProgress = state.profile && !state.done && answeredCount() > 0;
@@ -296,49 +337,55 @@
       : inProgress
         ? `<a class="btn primary lg" href="#/quiz">${esc(t("home.continue"))} · ${esc(Q.chapters[state.pos.ch].title)} →</a><a class="btn ghost lg" href="#/start">${esc(t("home.startOver"))}</a>`
         : `<a class="btn primary lg" href="#/start">${esc(t("home.start"))}</a><a class="btn ghost lg" href="#/explore">${esc(t("home.explore"))}</a>`;
-    const bubbles = BUBBLES.map(([e, label, id], i) => {
+    const feature = (k, title, d) => `<div class="card feature">${icon(k)}<h3>${esc(title)}</h3><p class="muted">${esc(d)}</p></div>`;
+    const bubbles = BUBBLES.filter(([, id]) => BY_ID[id]).map(([label, id, line], i) => {
       const a = (bubbleSlot(i) / 10) * 2 * Math.PI - Math.PI / 2;
-      const left = 50 + Math.cos(a) * 32, top = 50 + Math.sin(a) * 46;
-      return `<a class="bubble" href="#/career/${esc(id)}" title="See the ${esc(label)} roadmap" style="left:${left.toFixed(1)}%;top:${top.toFixed(1)}%;animation-delay:${(i * 0.4).toFixed(1)}s">${e} ${esc(label)}</a>`;
+      const left = 50 + Math.cos(a) * 34, top = 50 + Math.sin(a) * 46;
+      return `<a class="bubble" href="#/career/${esc(id)}" title="See the ${esc(label)} route" style="--c:var(--${line});left:${left.toFixed(1)}%;top:${top.toFixed(1)}%;animation-delay:${(i * 0.4).toFixed(1)}s"><i></i>${esc(label)}</a>`;
     }).join("");
-    const feature = (e, title, d) => `<div class="card feature"><span class="f-emoji" aria-hidden="true">${e}</span><h3>${esc(title)}</h3><p class="muted">${esc(d)}</p></div>`;
 
     app.innerHTML = `
     <section class="view hero">
       <div class="hero-text">
-        <span class="pill">${esc(t("home.pill"))}</span>
+        <span class="eyebrow">${esc(t("home.pill"))}</span>
         <h1>${esc(t("home.title"))} <span class="grad">${esc(t("home.titleYou"))}</span>.</h1>
         <p class="lead">${esc(t("home.lead"))}</p>
         <div class="cta-row">${actions}</div>
-        <p class="small muted">${esc(t("home.meta"))}</p>
+        <ul class="hero-meta">${t("home.meta").split(" · ").map(m => `<li>${esc(m)}</li>`).join("")}</ul>
         <div class="stats-strip" aria-live="polite">
-          <span class="stat-pill"><span aria-hidden="true">👀</span> <b class="grad" data-stat="visitors">0</b> <span data-stat-label="visitors" data-one="visitor">visitors</span></span>
-          <span class="stat-pill"><span aria-hidden="true">🎯</span> <b class="grad" data-stat="quizzes">0</b> <span data-stat-label="quizzes" data-one="quiz taken">quizzes taken</span></span>
+          <span class="stat-pill"><b data-stat="visitors">0</b> <span data-stat-label="visitors" data-one="visitor">visitors</span></span>
+          <span class="stat-pill"><b data-stat="quizzes">0</b> <span data-stat-label="quizzes" data-one="quiz taken">quizzes taken</span></span>
         </div>
         ${langNote()}
       </div>
       <div class="hero-art">
-        <a class="compass" href="#/explore/offbeat" aria-label="Explore offbeat careers" title="Explore offbeat careers">🧭</a>
+        <a class="compass" href="#/explore/offbeat" aria-label="Explore offbeat careers" title="Explore offbeat careers">${COMPASS_SVG}</a>
         ${bubbles}
       </div>
     </section>
+    <section class="view offbeat-band">
+      <h2>Love something? <span>There's a route for it.</span></h2>
+      <p>${CAREERS.length} careers, each with a full route from Class 6 to your first job.</p>
+      <div class="ob-chips">${OFFBEAT_PICKS.filter(([, id]) => BY_ID[id]).map(([label, id, line]) => `<a href="#/career/${esc(id)}" style="--c:var(--${line})">${esc(label)}</a>`).join("")}
+        <a class="all" href="#/explore/offbeat">See all offbeat careers</a></div>
+    </section>
     <section class="view features">
-      ${feature("🔬", t("home.f1t"), t("home.f1d"))}
-      ${feature("🇮🇳", t("home.f2t"), t("home.f2d", { n: CAREERS.length }))}
-      ${feature("🗺️", t("home.f3t"), t("home.f3d"))}
+      ${feature("research", t("home.f1t"), t("home.f1d"))}
+      ${feature("india", t("home.f2t"), t("home.f2d", { n: CAREERS.length }))}
+      ${feature("route", t("home.f3t"), t("home.f3d"))}
     </section>
     <section class="view">
       <h2 class="section-title">${esc(t("home.chaptersTitle"))}</h2>
       <ol class="chapters">${Q.chapters.map((ch, i) => `
-        <li><span class="ch-emoji" aria-hidden="true">${ch.emoji}</span><div><b>${i + 1}. ${esc(ch.title)}</b><p class="small muted">${esc(ch.blurb)}</p></div></li>`).join("")}
+        <li><span class="ch-num" aria-hidden="true">${i + 1}</span><div><b>${esc(ch.title)}</b><p class="small muted">${esc(ch.blurb)}</p></div></li>`).join("")}
       </ol>
       <a class="card bonus" href="#/aptitude">
-        <span class="ch-emoji" aria-hidden="true">🧩</span>
+        ${icon("puzzle")}
         <span class="bonus-body"><b>Bonus: Aptitude Challenge</b><span class="small muted">${APT.items.length} quick puzzles on numbers, words, logic and shapes. Optional, and it sharpens your matches.</span></span>
-        <span class="btn primary small">${state.apt.done ? "See my aptitude →" : "Try it →"}</span>
+        <span class="btn ghost small">${state.apt.done ? "See my aptitude →" : "Try it →"}</span>
       </a>
       <a class="card bonus" href="#/compare">
-        <span class="ch-emoji" aria-hidden="true">⚖️</span>
+        ${icon("compare")}
         <span class="bonus-body"><b>Compare careers side by side</b><span class="small muted">Pay, outlook, streams, exams and colleges for up to 3 careers at once.</span></span>
         <span class="btn ghost small">Compare →</span>
       </a>
@@ -408,6 +455,8 @@
   let draft = null;
   const needsStream = st => st === "h" || st === "c";
   const ready = () => draft.stage && (!needsStream(draft.stage) || draft.stream);
+  // College students are asked the stream they took: it decides which degrees and exams are open to them.
+  const streamLabel = st => st === "c" ? "Which stream did you take in Class 12?" : "Your stream in Class 11–12";
 
   function renderSetup() {
     draft = Object.assign({ name: "", stage: null, stream: null }, state.profile || {});
@@ -428,7 +477,7 @@
           </div>
         </div>
         <div class="field" id="stream-field" ${needsStream(draft.stage) ? "" : "hidden"}>
-          <span class="field-label">Your stream in Class 11–12</span>
+          <span class="field-label" id="stream-label">${streamLabel(draft.stage)}</span>
           <div class="chips">${META.userStreams.map(s => `
             <button type="button" class="chip ${draft.stream === s.k ? "on" : ""}" data-act="stream" data-k="${esc(s.k)}" aria-pressed="${draft.stream === s.k}">${esc(s.label)}</button>`).join("")}
           </div>
@@ -453,6 +502,7 @@
       b.setAttribute("aria-pressed", on);
     });
     document.getElementById("stream-field").hidden = !needsStream(draft.stage);
+    document.getElementById("stream-label").textContent = streamLabel(draft.stage);
     app.querySelector('[data-act="begin"]').disabled = !ready();
   }
 
@@ -461,9 +511,11 @@
   let lastPct = 0;
   const HINTS = { tt: "Keys: ← or →", rate: "Keys: 1–5", likert: "Keys: 1–5", scen: "Keys: 1–4", subj: "", fav: "" };
 
+  // Chapters as stations on a route line; --p is how far along the line you are.
   function journey(ci) {
-    return `<ol class="journey" aria-label="Chapters">${Q.chapters.map((ch, i) => `
-      <li class="${i < ci ? "done" : i === ci ? "now" : ""}"><span class="j-dot">${i < ci ? "✓" : ch.emoji}</span><span class="j-label">${esc(ch.title)}</span></li>`).join("")}
+    const along = (ci / (Q.chapters.length - 1) * 80).toFixed(1);
+    return `<ol class="journey" aria-label="Chapters" style="--p:${along}%">${Q.chapters.map((ch, i) => `
+      <li class="${i < ci ? "done" : i === ci ? "now" : ""}"${i === ci ? ' aria-current="step"' : ""}><span class="j-dot" aria-hidden="true">${i < ci ? "✓" : i + 1}</span><span class="j-label">${esc(ch.title)}</span></li>`).join("")}
     </ol>`;
   }
 
@@ -482,8 +534,8 @@
       <h1 class="sr-only">Chapter ${ci + 1}: ${esc(ch.title)}</h1>
       ${journey(ci)}
       <div class="q-meta">
-        <span><b>${ch.emoji} ${esc(ch.title)}</b> · ${ch.items ? `${qi + 1} of ${ch.items.length}` : ch.kind === "fav" ? "Last step" : "One page"}</span>
-        <span class="xp ${bump ? "bump" : ""}">⭐ ${done * 10} XP</span>
+        <span><b>${esc(ch.title)}</b> · ${ch.items ? `${qi + 1} of ${ch.items.length}` : ch.kind === "fav" ? "Last step" : "One page"}</span>
+        <span class="xp ${bump ? "bump" : ""}">${done * 10} XP</span>
       </div>
       <div class="progress" role="progressbar" aria-label="Overall progress" aria-valuemin="0" aria-valuemax="${TOTAL}" aria-valuenow="${done}">
         <span style="width:${lastPct}%"></span>
@@ -1125,7 +1177,7 @@
             ${c.code.split("").map(ty => `<span class="tag" style="--c:var(--${ty})">${Q.types[ty].emoji} ${esc(Q.types[ty].name)}</span>`).join("")}
             ${c.offbeat ? `<span class="tag offbeat-tag">✨ Offbeat</span>` : ""}
           </div>
-          ${streamWarn(c)}
+          ${streamWarn(c, true)}
         </div>
         <div class="c-side">
           ${m ? `<div class="ring" style="--p:${m.score}"><div><b>${m.score}%</b><span>match</span></div></div>`
@@ -1600,8 +1652,10 @@
     const th = document.documentElement.dataset.theme;
     return th ? th === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
   };
+  const ICON_SUN = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg>';
+  const ICON_MOON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>';
   function syncThemeBtn() {
-    themeBtn.textContent = isDark() ? "☀️" : "🌙";
+    themeBtn.innerHTML = isDark() ? ICON_SUN : ICON_MOON;
     themeBtn.setAttribute("aria-label", isDark() ? "Switch to light mode" : "Switch to dark mode");
   }
   themeBtn.addEventListener("click", () => {

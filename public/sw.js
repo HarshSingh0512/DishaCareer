@@ -1,13 +1,14 @@
 /* Service worker: makes Disha load instantly and work offline on weak networks.
    Strategy: pre-cache the app shell on install; serve same-origin GETs from the
    cache and refresh them in the background (stale-while-revalidate). Cross-origin
-   requests (fonts) and /api calls are passed straight to the network and never cached here.
+   requests and /api calls are passed straight to the network and never cached here.
    Bump CACHE whenever the shell changes so old caches are cleaned up. */
-const CACHE = "disha-v16-2026-10-19";
+const CACHE = "disha-v26-2026-10-20";
 const SHELL = [
   "./",
   "./index.html",
   "./css/styles.css",
+  "./fonts/bricolage-grotesque-latin.woff2",
   "./js/boot.js",
   "./js/scoring.js",
   "./js/analytics.js",

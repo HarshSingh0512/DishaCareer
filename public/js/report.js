@@ -158,7 +158,7 @@
           <dt>Where to study</dt><dd>${c.colleges.slice(0, 3).map(esc).join(", ")}</dd>
           <dt>Your next step</dt><dd>${esc(c.path[stage] || defaults(c)[stage] || c.path.c)}</dd>
         </dl>
-        ${App().streamWarn(c)}
+        ${App().streamWarn(c, true)}
       </div>`;
     }).join("");
 

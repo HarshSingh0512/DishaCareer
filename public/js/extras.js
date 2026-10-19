@@ -57,6 +57,34 @@ window.SUBJECT_COMBOS = {
   linguist: "Any stream; take a foreign or classical language as an elective if you can."
 };
 
+/* Routes for a student whose Class 11–12 stream doesn't match the career's usual
+   stream (careers.js `streams` without "ANY"). Shown on the career page and in the
+   Full Report. NIOS lets students add Class 12 subjects later; eligibility rules
+   (NMC, DGCA, COA, INC) change, so the UI tells students to confirm them. */
+window.BRIDGE_ROUTES = {
+  software: "BCA or B.Sc Computer Science (many colleges take any stream; some need Maths in Class 12), then MCA. Many tech companies also hire on skills, so build a portfolio of real projects.",
+  ai: "Data analytics is open through BA/B.Sc Economics or Statistics, BBA or B.Com, plus Python, SQL and statistics. Maths in Class 12 helps a lot; you can add it through NIOS.",
+  aerospace: "Add Physics and Maths through NIOS to become eligible for JEE. Related careers open to every stream: aviation management, airline operations and drone piloting.",
+  engineer: "A 3-year polytechnic diploma (admission after Class 10) leads to lateral entry into the second year of B.Tech. Or add Physics and Maths through NIOS and take JEE.",
+  robotics: "A polytechnic diploma in electronics or mechatronics leads to lateral entry into B.Tech, or add Physics and Maths through NIOS and take JEE. Hobby robotics with Arduino builds real skills meanwhile.",
+  doctor: "You can add Physics, Chemistry and Biology through NIOS to become eligible for NEET-UG; confirm the current NMC rules first. Related careers: public health, hospital administration and health psychology.",
+  dentist: "You can add Physics, Chemistry and Biology through NIOS to become eligible for NEET-UG; confirm the current NMC and DCI rules first. Related careers: healthcare management and medical writing.",
+  nurse: "B.Sc Nursing needs PCB, but the GNM nursing diploma has accepted other streams in many states; check the current Indian Nursing Council and state rules. Related careers: hospital administration, counselling and public health.",
+  vet: "You can add the science subjects through NIOS to become eligible for NEET-UG; confirm the current rules first. Open to every stream: animal welfare, wildlife conservation, pet training and dairy or poultry business.",
+  scientist: "Lab science needs a science degree; you can add the subjects through NIOS. Research careers that welcome every stream: economics, psychology, linguistics, archaeology and social research.",
+  environment: "Environmental studies and climate policy (a BA, then an MA in environment or sustainability) are open to every stream, and sustainability and conservation jobs need these skills too.",
+  agri: "B.Sc Agriculture needs science, but agribusiness management (a PGDM or MBA after any degree) and rural development roles are open to every stream.",
+  finance: "CA is open to every stream, and any graduate can take the CFA or an MBA in Finance (via CAT). BA Economics with Maths is a strong base; add Maths through NIOS if you didn't take it.",
+  economist: "Most Economics honours courses need Maths in Class 12, so take Maths as your optional or add it through NIOS. Otherwise do a BA with Economics and build statistics skills on the side.",
+  architect: "B.Arch needs Physics and Maths in Class 12 (a Council of Architecture rule); you can add them through NIOS. Interior design, B.Des and landscape design are open to every stream.",
+  pilot: "DGCA has accepted Physics and Maths cleared through NIOS for commercial pilot training; check its current rules. Cabin crew and airport operations are open to every stream.",
+  marine: "Marine biology needs a science degree. Open to every stream: marine conservation and policy, ocean and nature journalism, and scuba-diving instruction.",
+  forensic: "Forensic science needs science, but criminology and forensic psychology (BA/MA) are open to Arts students, and cyber forensics is open to anyone who learns computing seriously.",
+  astro: "Astronomy research needs Physics and Maths; you can add them through NIOS. Science communication, planetarium education and astrophotography are open to every stream.",
+  biotech: "Biotech degrees need science. Related routes open to every stream: patent and IP law (after an LLB), healthcare or bio-business management (MBA) and science writing.",
+  foodsci: "Food technology needs science. Open to every stream: hotel management and culinary arts (through NCHM JEE), food entrepreneurship and food writing."
+};
+
 /* National scholarships worth knowing. Shown on the "How it works" page.
    Always confirm current eligibility, amounts and dates on the official site. */
 window.SCHOLARSHIPS = [

@@ -116,6 +116,12 @@ window.DishaScoring = (function () {
     const sets = Q.subjectSets;
     if (!profile) return sets.s;
     if (profile.stage === "h") return sets[profile.stream] || sets.PCM;
+    // College: the subjects of their Class 12 stream, plus any other they may have studied since.
+    if (profile.stage === "c" && sets[profile.stream]) {
+      const base = sets[profile.stream];
+      const extra = sets.c.core.concat(sets.c.optional).filter(k => !base.core.includes(k));
+      return { core: base.core, optional: [...new Set(base.optional.concat(extra))] };
+    }
     return sets[profile.stage] || sets.s;
   }
 
