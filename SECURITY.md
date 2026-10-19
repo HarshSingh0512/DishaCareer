@@ -9,9 +9,9 @@ attack, but the measures below remove the common risks.
 ## What protects the site
 
 **Almost no third-party code.** The site ships its own JavaScript with no ad
-scripts and no npm runtime dependency. The only external requests are Google Fonts
-for the typeface (see "Going stricter" below to remove it) and, once a token is set
-in `public/js/analytics.js`, the Cloudflare Web Analytics beacon, which is
+scripts and no npm runtime dependency. Fonts are self-hosted (`public/fonts/`, SIL
+Open Font License), so the page makes no third-party request at all unless a token
+is set in `public/js/analytics.js` for the Cloudflare Web Analytics beacon, which is
 cookieless, collects no personal data and is allowed in the CSP only from
 `static.cloudflareinsights.com` / `cloudflareinsights.com`. Leave the token empty to
 switch it off.
@@ -56,7 +56,7 @@ same headers yourself.
 
 **Apache (`.htaccess`):**
 ```apache
-Header set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+Header set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 Header set X-Content-Type-Options "nosniff"
 Header set Referrer-Policy "no-referrer"
 Header set Strict-Transport-Security "max-age=63072000; includeSubDomains"
@@ -64,7 +64,7 @@ Header set Strict-Transport-Security "max-age=63072000; includeSubDomains"
 
 **Nginx:**
 ```nginx
-add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" always;
+add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" always;
 add_header X-Content-Type-Options "nosniff" always;
 add_header Referrer-Policy "no-referrer" always;
 add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
@@ -111,10 +111,6 @@ add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" alway
 
 ## Going stricter (optional)
 
-- **Self-host the font** to remove the last third-party request. Download the
-  Plus Jakarta Sans web-font files, serve them from the site, drop the two Google
-  links from `index.html`, and remove `https://fonts.*` from the CSP. The site
-  already falls back to a system font if the web font is blocked.
 - **Add Subresource Integrity** if you ever load a script from a CDN (the site
   currently loads none).
 
