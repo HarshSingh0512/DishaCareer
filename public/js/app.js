@@ -398,16 +398,18 @@
       <ol class="chapters">${Q.chapters.map((ch, i) => `
         <li><span class="ch-num" aria-hidden="true">${i + 1}</span><div><b>${esc(ch.title)}</b><p class="small muted">${esc(ch.blurb)}</p></div></li>`).join("")}
       </ol>
-      <a class="card bonus" href="#/aptitude">
-        ${icon("puzzle")}
-        <span class="bonus-body"><b>Bonus: Aptitude Challenge</b><span class="small muted">${APT.items.length} quick puzzles on numbers, words, logic and shapes. Optional, and it sharpens your matches.</span></span>
-        <span class="btn ghost small">${state.apt.done ? "See my aptitude →" : "Try it →"}</span>
-      </a>
-      <a class="card bonus" href="#/compare">
-        ${icon("compare")}
-        <span class="bonus-body"><b>Compare careers side by side</b><span class="small muted">Pay, outlook, streams, exams and colleges for up to 3 careers at once.</span></span>
-        <span class="btn ghost small">Compare →</span>
-      </a>
+      <div class="bonus-row">
+        <a class="card bonus" href="#/aptitude">
+          ${icon("puzzle")}
+          <span class="bonus-body"><b>Bonus: Aptitude Challenge</b><span class="small muted">${APT.items.length} quick puzzles on numbers, words, logic and shapes. Optional, and it sharpens your matches.</span></span>
+          <span class="btn ghost small">${state.apt.done ? "See my aptitude →" : "Try it →"}</span>
+        </a>
+        <a class="card bonus" href="#/compare">
+          ${icon("compare")}
+          <span class="bonus-body"><b>Compare careers side by side</b><span class="small muted">Pay, outlook, streams, exams and colleges for up to 3 careers at once.</span></span>
+          <span class="btn ghost small">Compare →</span>
+        </a>
+      </div>
     </section>`;
   }
 
@@ -1300,15 +1302,29 @@
       <p class="muted">${CAREERS.length} careers with clear roadmaps, entrance exams and top colleges. ${state.done ? "Sorted by your match." : `<a href="#/start">Take the quiz</a> to see your match %.`} <a href="#/compare">⚖️ Compare careers</a></p>
       <div class="toolbar">
         <input id="search" type="search" placeholder="Search careers, exams or colleges (e.g. NEET, design, IIT)" value="${esc(filt.q)}" aria-label="Search careers">
-        <div class="chips scroll" role="group" aria-label="Filter careers">
-          <button class="chip ${filt.saved ? "on" : ""}" data-act="savedOnly" aria-pressed="${filt.saved}">⭐ Saved (${state.saved.length})</button>
-          <button class="chip ${filt.offbeat ? "on" : ""}" data-act="offbeatOnly" aria-pressed="${filt.offbeat}">✨ Offbeat (${OFFBEAT_COUNT})</button>
-          ${clusters.map(k => `<button class="chip ${filt.cluster === k ? "on" : ""}" data-act="cluster" data-k="${esc(k)}" aria-pressed="${filt.cluster === k}">${esc(k)}</button>`).join("")}
+        <div class="chips-wrap">
+          <button class="chips-more left" type="button" data-act="chipsMore" data-dir="-1" aria-label="Show earlier filters" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5 L16 12 L9 19"/></svg></button>
+          <div class="chips scroll" role="group" aria-label="Filter careers">
+            <button class="chip ${filt.saved ? "on" : ""}" data-act="savedOnly" aria-pressed="${filt.saved}">⭐ Saved (${state.saved.length})</button>
+            <button class="chip ${filt.offbeat ? "on" : ""}" data-act="offbeatOnly" aria-pressed="${filt.offbeat}">✨ Offbeat (${OFFBEAT_COUNT})</button>
+            ${clusters.map(k => `<button class="chip ${filt.cluster === k ? "on" : ""}" data-act="cluster" data-k="${esc(k)}" aria-pressed="${filt.cluster === k}">${esc(k)}</button>`).join("")}
+          </div>
+          <button class="chips-more" type="button" data-act="chipsMore" aria-label="Show more filters" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5 L16 12 L9 19"/></svg></button>
         </div>
       </div>
       <div id="grid" class="grid-cards"></div>
     </section>`;
+    chipsEdge();
     drawGrid();
+  }
+
+  // Hide each filter arrow once the chip row is scrolled to that end
+  // (both hide when every chip already fits).
+  function chipsEdge() {
+    const row = app.querySelector(".chips.scroll");
+    if (!row) return;
+    row.parentElement.classList.toggle("at-start", row.scrollLeft <= 4);
+    row.parentElement.classList.toggle("at-end", row.scrollLeft + row.clientWidth >= row.scrollWidth - 4);
   }
 
   function drawGrid() {
@@ -1627,6 +1643,10 @@
       markChips("offbeatOnly", () => filt.offbeat);
       drawGrid();
     },
+    chipsMore(b) {
+      const row = b.parentElement.querySelector(".chips.scroll");
+      row.scrollBy({ left: row.clientWidth * 0.7 * (Number(b.dataset.dir) || 1) });
+    },
     aptStart() {
       aptIntroSeen = true;
       renderAptitude();
@@ -1663,6 +1683,9 @@
   app.addEventListener("input", e => {
     if (e.target.id === "search") { filt.q = e.target.value; drawGrid(); }
   });
+  // Scroll events don't bubble, so listen in the capture phase.
+  app.addEventListener("scroll", e => { if (e.target.classList && e.target.classList.contains("scroll")) chipsEdge(); }, true);
+  window.addEventListener("resize", chipsEdge);
   app.addEventListener("change", e => {
     if (e.target.dataset && e.target.dataset.slot != null) {
       const picked = [...app.querySelectorAll("select[data-slot]")].map(s => s.value).filter(id => BY_ID[id]);
